@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import axios from "axios";
 import LandingPage from "./pages/LandingPage";
 import PlayerPage from "./pages/PlayerPage";
+import ArtistSelection from "./components/ArtistSelection";
+import { ARTISTS_DATA } from "./data/artists";
 import "./App.css";
 
 const moods = [
@@ -52,10 +54,29 @@ function App() {
   const [liked, setLiked] = useState(false);
   const playerRef = useRef(null);
 
+  // Personalized Mode State
+  const [showArtistSelection, setShowArtistSelection] = useState(false);
+  const [selectedArtists, setSelectedArtists] = useState([]);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+
   useEffect(() => {
     setSessionId(getOrCreateSessionId());
-    const saved = localStorage.getItem("likedSongs");
-    if (saved) setLikedSongs(JSON.parse(saved));
+    const savedLiked = localStorage.getItem("likedSongs");
+    if (savedLiked) setLikedSongs(JSON.parse(savedLiked));
+
+    const savedArtists = localStorage.getItem("selectedArtists");
+    if (savedArtists) {
+      const parsed = JSON.parse(savedArtists);
+      setSelectedArtists(parsed);
+      if (parsed.length < 3) {
+        setShowArtistSelection(true);
+      } else {
+        const savedPersonalized = localStorage.getItem("isPersonalized");
+        setIsPersonalized(savedPersonalized === "true");
+      }
+    } else {
+      setShowArtistSelection(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -104,6 +125,10 @@ function App() {
       likedKeywords: liked.join(","),
       dislikedKeywords: disliked.join(","),
       sessionId, // ✅ Include sessionId for Auto-DJ queue management
+      isPersonalized,
+      selectedArtists: isPersonalized 
+          ? ARTISTS_DATA.filter(a => selectedArtists.includes(a.id)).map(a => a.name).join(",") 
+          : "",
     };
   };
 
@@ -362,20 +387,42 @@ function App() {
 
   const currentSong = songs[currentIndex];
 
+  const handleArtistSelectionComplete = (artists) => {
+    setSelectedArtists(artists);
+    localStorage.setItem("selectedArtists", JSON.stringify(artists));
+    setShowArtistSelection(false);
+  };
+
+  const handleTogglePersonalized = (checked) => {
+    setIsPersonalized(checked);
+    localStorage.setItem("isPersonalized", checked);
+  };
+
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <LandingPage
-            moods={moods}
-            selectedMood={selectedMood}
-            loading={loading}
-            blendConfig={blendConfig}
-            onMoodSelect={handleMood}
-          />
-        }
-      />
+    <>
+      {showArtistSelection && (
+        <ArtistSelection 
+          initialSelected={selectedArtists} 
+          onComplete={handleArtistSelectionComplete} 
+        />
+      )}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <LandingPage
+              moods={moods}
+              selectedMood={selectedMood}
+              loading={loading}
+              blendConfig={blendConfig}
+              onMoodSelect={handleMood}
+              isPersonalized={isPersonalized}
+              onTogglePersonalized={handleTogglePersonalized}
+              onEditArtists={() => setShowArtistSelection(true)}
+              canPersonalize={selectedArtists.length >= 3}
+            />
+          }
+        />
       <Route
         path="/player"
         element={
@@ -405,8 +452,9 @@ function App() {
           />
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

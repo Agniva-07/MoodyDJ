@@ -32,9 +32,11 @@ const QUEUE_PREFILL_SIZE = 20;
 const MAX_PLAYED_HISTORY = 50;
 const DEFAULT_MOOD = "chill";
 
-// ✅ FIXED: Duration filtering updated to 4-40 minutes (240s-2400s)
-const DURATION_MIN = 240; // 4 minutes
-const DURATION_MAX = 2400; // 40 minutes
+// Duration thresholds for Singles and Playlists / Mixes
+const SINGLE_MIN = 180; // 3 mins
+const SINGLE_MAX = 600; // 10 mins
+const PLAYLIST_MIN = 1200; // 20 mins
+const PLAYLIST_MAX = 3600; // 60 mins
 const VIEW_COUNT_BOOST_THRESHOLD = 100000; // 100k views for boost
 const DEFAULT_FALLBACK_SCORE = 1; // Fallback score for videos without stats
 
@@ -179,8 +181,11 @@ const scoreVideos = async (videoIds) => {
         // Parse ISO 8601 duration (PT3M45S)
         const durationSeconds = parseDuration(duration);
 
-        // ✅ FIXED: Filter changed to 240s-2400s (4-40 minutes)
-        if (durationSeconds < DURATION_MIN || durationSeconds > DURATION_MAX) {
+        // FIX 2: Include Both Playlists + Single Songs
+        const isSingle = durationSeconds >= SINGLE_MIN && durationSeconds <= SINGLE_MAX;
+        const isPlaylistVid = durationSeconds >= PLAYLIST_MIN && durationSeconds <= PLAYLIST_MAX;
+
+        if (!isSingle && !isPlaylistVid) {
           return acc;
         }
 
@@ -260,54 +265,153 @@ const parseDuration = (duration) => {
  * - songs, playlist, mix, jukebox variants
  * Merges and deduplicates results
  */
-const performMultiQuerySearch = async (mood, query) => {
-  const searchQueries = [
-    `${query} songs`,
-    `${query} playlist`,
-    `${query} mix`,
-    `${query} jukebox`,
-  ];
-
-  const allVideos = [];
+const performMultiQuerySearch = async (mood, query, isPersonalized = false, artists = []) => {
+  let allVideos = [];
   const videoIdSet = new Set();
+  const maxResultsPerFetch = 15;
 
-  // Execute searches in parallel for better performance
-  const searchPromises = searchQueries.map(q =>
-    axios.get("https://www.googleapis.com/youtube/v3/search", {
-      params: {
-        part: "snippet",
-        q,
-        type: "video",
-        maxResults: 15,
-        videoCategoryId: "10",
-        key: process.env.YOUTUBE_API_KEY,
-        relevanceLanguage: "hi",
-        regionCode: "IN",
-      },
-    }).catch(err => {
-      console.error(`❌ Multi-query search failed for "${q}":`, err.message);
-      return { data: { items: [] } };
-    })
-  );
+  if (isPersonalized && artists.length > 0) {
+    console.log("Artists:", artists);
+    // FIX 3: Fair distribution across selected artists
+    // FIX 4: Parallel fetch (Promise.all over artists)
+    // FIX 1: Remove mood keywords, just use `${artist} songs` and `${artist} playlist`
+    const quotaPerArtist = Math.max(1, Math.floor(20 / artists.length));
 
-  const responses = await Promise.all(searchPromises);
+    const artistPromises = artists.map(async (artist) => {
+      try {
+        const responses = await Promise.all([
+          axios.get("https://www.googleapis.com/youtube/v3/search", {
+            params: {
+              part: "snippet",
+              q: `${artist} songs`, // Strictly ONLY artist name
+              type: "video",
+              maxResults: maxResultsPerFetch,
+              videoCategoryId: "10",
+              key: process.env.YOUTUBE_API_KEY,
+              relevanceLanguage: "hi",
+              regionCode: "IN",
+            },
+          }),
+          axios.get("https://www.googleapis.com/youtube/v3/search", {
+            params: {
+              part: "snippet",
+              q: `${artist} playlist`, // To help get playlists
+              type: "video",
+              maxResults: maxResultsPerFetch,
+              videoCategoryId: "10",
+              key: process.env.YOUTUBE_API_KEY,
+              relevanceLanguage: "hi",
+              regionCode: "IN",
+            },
+          })
+        ]);
 
-  responses.forEach(response => {
-    response.data.items.forEach((item) => {
-      const videoId = item.id.videoId;
-      if (!videoIdSet.has(videoId)) {
-        videoIdSet.add(videoId);
-        allVideos.push({
-          videoId,
-          title: item.snippet.title,
-          channelTitle: item.snippet.channelTitle,
-          thumbnail: item.snippet.thumbnails.medium.url,
+        const artistVideos = [];
+        responses.forEach(response => {
+          response.data.items.forEach(item => {
+            if (!videoIdSet.has(item.id.videoId)) {
+              videoIdSet.add(item.id.videoId);
+              artistVideos.push({
+                videoId: item.id.videoId,
+                title: item.snippet.title,
+                channelTitle: item.snippet.channelTitle,
+                thumbnail: item.snippet.thumbnails.medium.url,
+              });
+            }
+          });
         });
+
+        // Return all found videos for this artist to be merged using the smart quota later
+        return artistVideos;
+      } catch (err) {
+        console.error(`❌ Search failed for artist "${artist}":`, err.message);
+        return [];
       }
     });
-  });
 
-  return allVideos;
+    const resultsArray = await Promise.all(artistPromises);
+    console.log("Fetched per artist:", resultsArray.map(r => r.length));
+    const extraPool = [];
+
+    // FIX 3: SMART QUOTA WITH FALLBACK FILL
+    resultsArray.forEach(videos => {
+      const topResults = videos.slice(0, quotaPerArtist);
+      const leftovers = videos.slice(quotaPerArtist);
+
+      topResults.forEach(v => {
+        allVideos.push(v);
+      });
+
+      leftovers.forEach(v => {
+        extraPool.push(v);
+      });
+    });
+
+    // Fill remaining slots up to 20
+    let remainingSlots = 20 - allVideos.length;
+    let extraIdx = 0;
+    while (remainingSlots > 0 && extraIdx < extraPool.length) {
+      allVideos.push(extraPool[extraIdx]);
+      remainingSlots--;
+      extraIdx++;
+    }
+    
+  } else {
+    // Generic mode multi-query
+    const searchQueries = [
+      `${query} songs`,
+      `${query} playlist`,
+      `${query} mix`,
+      `${query} jukebox`,
+    ];
+
+    const searchPromises = searchQueries.map(q =>
+      axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: {
+          part: "snippet",
+          q,
+          type: "video",
+          maxResults: maxResultsPerFetch,
+          videoCategoryId: "10",
+          key: process.env.YOUTUBE_API_KEY,
+          relevanceLanguage: "hi",
+          regionCode: "IN",
+        },
+      }).catch(err => {
+        console.error(`❌ Multi-query search failed for "${q}":`, err.message);
+        return { data: { items: [] } };
+      })
+    );
+
+    const responses = await Promise.all(searchPromises);
+    responses.forEach(response => {
+      response.data.items.forEach((item) => {
+        const videoId = item.id.videoId;
+        if (!videoIdSet.has(videoId)) {
+          videoIdSet.add(videoId);
+          allVideos.push({
+            videoId,
+            title: item.snippet.title,
+            channelTitle: item.snippet.channelTitle,
+            thumbnail: item.snippet.thumbnails.medium.url,
+          });
+        }
+      });
+    });
+  }
+
+  // FIX 8: OPTIONAL CLEAN DEDUP AT FINAL STAGE
+  const uniqueMap = new Map();
+  allVideos.forEach(v => {
+    if (!uniqueMap.has(v.videoId)) {
+      uniqueMap.set(v.videoId, v);
+    }
+  });
+  
+  const finalVideos = Array.from(uniqueMap.values());
+  console.log("Final count:", finalVideos.length);
+
+  return finalVideos;
 };
 
 /**
@@ -315,8 +419,10 @@ const performMultiQuerySearch = async (mood, query) => {
  * Uses aggressive caching (12 min TTL)
  * ✅ IMPROVED: Multi-query search for better results
  */
-const searchMoodVideos = async (mood, query, options = { allowSearch: true }) => {
-  const cacheKey = mood;
+const searchMoodVideos = async (mood, query, options = { allowSearch: true, isPersonalized: false, artists: [] }) => {
+  // FIX 7: SAFE CACHE KEY
+  const safeArtistsOpts = Array.isArray(options.artists) ? options.artists : [];
+  const cacheKey = options.isPersonalized ? `pers:${[...safeArtistsOpts].sort().join(",")}` : mood;
   const allowSearch = options.allowSearch !== false;
 
   console.log("🧠 SEARCH CHECK:", mood);
@@ -355,7 +461,7 @@ const searchMoodVideos = async (mood, query, options = { allowSearch: true }) =>
 
     try {
       // ✅ NEW: Multi-query search instead of single query
-      const videos = await performMultiQuerySearch(mood, query);
+      const videos = await performMultiQuerySearch(mood, query, options.isPersonalized, options.artists);
 
       // Cache the search result
       searchCache.set(cacheKey, {
@@ -433,6 +539,8 @@ const getOrCreateSession = (sessionId) => {
       // ✅ NEW: Track user preferences per session
       likedKeywords: [],
       dislikedKeywords: [],
+      isPersonalized: false,
+      selectedArtists: [],
       // ✅ FIXED: track last access for TTL cleanup
       lastAccess: Date.now(),
     });
@@ -513,7 +621,11 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
 
   // Search only if cache is empty OR cache is expired
   let videos = [];
-  const cacheKey = mood;
+  // FIX 7: SAFE CACHE KEY
+  const safeArtistsSess = Array.isArray(session.selectedArtists) ? session.selectedArtists : [];
+  const cacheKey = session.isPersonalized ? `pers:${[...safeArtistsSess].sort().join(",")}` : mood;
+
+  const searchOptions = { allowSearch, isPersonalized: session.isPersonalized, artists: session.selectedArtists };
 
   if (searchCache.has(cacheKey)) {
     const { data, timestamp } = searchCache.get(cacheKey);
@@ -528,7 +640,7 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
       } else {
         // Cache expired, search again
         console.log(`⏰ Cache expired, searching again...`);
-        const result = await searchMoodVideos(mood, query, { allowSearch: true });
+        const result = await searchMoodVideos(mood, query, searchOptions);
         videos = result.videos;
       }
     }
@@ -539,7 +651,7 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
       videos = [];
     } else {
       // First time, search
-      const result = await searchMoodVideos(mood, query, { allowSearch: true });
+      const result = await searchMoodVideos(mood, query, searchOptions);
       videos = result.videos;
     }
   }
@@ -573,12 +685,94 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
     } else {
       // Level 3: Search with forced allowSearch
       console.log(`📌 Level 3: Force search to recover queue`);
-      const result = await searchMoodVideos(mood, query, { allowSearch: true });
+      const result = await searchMoodVideos(mood, query, { ...searchOptions, allowSearch: true });
       session.videos = await toScoredQueue(result.videos);
     }
   } else {
     session.videos = unplayed;
   }
+
+  // FIX 5: OPTIONAL FUTURE HOOK (LIGHTWEIGHT)
+  const ARTIST_WEIGHTS = {
+    "Arijit Singh": 1.2,
+    "Kishore Kumar": 1.0
+  };
+
+  session.videos.forEach(v => {
+    let weight = 1.0;
+    if (v.title && v.channelTitle) {
+      Object.keys(ARTIST_WEIGHTS).forEach(artistName => {
+        const nameLower = artistName.toLowerCase();
+        // FIX 4: FIX ARTIST MATCHING (REMOVE FALSE POSITIVES)
+        if (v.channelTitle && v.channelTitle.toLowerCase().includes(nameLower)) {
+          weight = Math.max(weight, ARTIST_WEIGHTS[artistName]);
+        }
+      });
+    }
+    v.score = v.score * weight;
+  });
+
+  // OPTIONAL RANKING: Soft rank boost for Personalized Mode based on mood
+  if (session.isPersonalized && mood) {
+    const moodTokens = MOOD_KEYWORDS[mood] ? MOOD_KEYWORDS[mood].split(" ") : [];
+    if (mood === "sad") moodTokens.push("sad", "emotional", "lofi", "slow");
+    if (mood === "chill") moodTokens.push("chill", "lofi", "relax", "calm", "slow");
+    if (mood === "hype") moodTokens.push("hype", "party", "bass", "workout", "remix");
+    if (mood === "focus") moodTokens.push("focus", "study", "instrumental", "deep", "bgm");
+
+    session.videos.forEach(v => {
+      // FIX 5: PREVENT UNDEFINED CRASH (TITLE SAFETY)
+      const titleLower = (v.title || "").toLowerCase();
+      let matchCount = 0;
+      moodTokens.forEach(t => {
+        if (titleLower.includes(t)) matchCount++;
+      });
+      if (matchCount > 0) {
+        // FIX 3: SAFE WEIGHTED SCORING
+        const moodScore = matchCount; 
+        const baseScore = v.score || 0;
+        const moodBoost = moodScore || 0;
+        v.score = (baseScore * 0.9) + (moodBoost * 0.1);
+      }
+    });
+  }
+
+  // FIX 6: FIX DURATION FILTER
+  const singles = session.videos.filter(v => v.duration >= SINGLE_MIN && v.duration <= SINGLE_MAX).sort((a,b) => b.score - a.score);
+  const playlists = session.videos.filter(v => v.duration >= PLAYLIST_MIN && v.duration <= PLAYLIST_MAX).sort((a,b) => b.score - a.score);
+  const others = session.videos.filter(v => (v.duration > SINGLE_MAX && v.duration < PLAYLIST_MIN) || v.duration < SINGLE_MIN || v.duration > PLAYLIST_MAX).sort((a,b) => b.score - a.score);
+  
+  const totalSlots = session.videos.length;
+  // target playlists ≈ 30-50%
+  let targetPlaylists = Math.floor(totalSlots * 0.4);
+  let targetSingles = totalSlots - targetPlaylists;
+  
+  if (playlists.length < targetPlaylists) {
+    targetPlaylists = playlists.length;
+    targetSingles = totalSlots - targetPlaylists;
+  }
+  if (singles.length < targetSingles) {
+    targetSingles = singles.length;
+    targetPlaylists = Math.min(playlists.length, totalSlots - targetSingles);
+  }
+
+  const adaptiveMix = [];
+  let s = 0, p = 0;
+  while (s < targetSingles || p < targetPlaylists) {
+    if (s < targetSingles && s < singles.length) adaptiveMix.push(singles[s++]);
+    if (p < targetPlaylists && p < playlists.length) adaptiveMix.push(playlists[p++]);
+  }
+  
+  // Fill remaining slots from best remaining pool
+  const remainingMixed = [
+    ...singles.slice(targetSingles), 
+    ...playlists.slice(targetPlaylists), 
+    ...others
+  ].sort((a,b) => b.score - a.score);
+  
+  adaptiveMix.push(...remainingMixed);
+
+  session.videos = adaptiveMix.length > 0 ? adaptiveMix : session.videos;
 
   // Store scores for quick access
   session.scores = {};
@@ -732,10 +926,14 @@ router.get("/songs", async (req, res) => {
       likedKeywords,
       dislikedKeywords,
       sessionId,
+      isPersonalized,
+      selectedArtists,
     } = req.query;
 
     const liked = parseList(likedKeywords);
     const disliked = parseList(dislikedKeywords);
+    const artists = parseList(selectedArtists);
+    const isPers = isPersonalized === "true" || isPersonalized === true;
 
     const primaryMood = mood1 || mood || DEFAULT_MOOD;
     const secondaryMood = mood2 || null;
@@ -751,13 +949,17 @@ router.get("/songs", async (req, res) => {
 
     // Initialize session
     if (sessionId) {
-      getOrCreateSession(sessionId);
+      const session = getOrCreateSession(sessionId);
+      session.isPersonalized = isPers;
+      session.selectedArtists = artists;
       touchSession(sessionId);
       console.log("🧠 SESSION:", sessionId);
     }
 
+    const searchOpts = { allowSearch: true, isPersonalized: isPers, artists: artists };
+
     if (!secondaryMood) {
-      const result = await searchMoodVideos(primaryMood, query1, { allowSearch: true });
+      const result = await searchMoodVideos(primaryMood, query1, searchOpts);
       const videos = result.videos;
       // ✅ FIXED: /songs now uses scoring pipeline before queue store
       const scoredVideos = await toScoredQueue(videos);
@@ -793,8 +995,8 @@ router.get("/songs", async (req, res) => {
 
     // Both searches will use cache if available (aggressive caching)
     const [result1, result2] = await Promise.all([
-      searchMoodVideos(primaryMood, query1, { allowSearch: true }),
-      searchMoodVideos(secondaryMood, query2, { allowSearch: true }),
+      searchMoodVideos(primaryMood, query1, searchOpts),
+      searchMoodVideos(secondaryMood, query2, searchOpts),
     ]);
 
     const blended = weightedInterleave(

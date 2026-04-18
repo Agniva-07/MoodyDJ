@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect }) {
+function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, isPersonalized, onTogglePersonalized, onEditArtists, canPersonalize }) {
   const [mood1, setMood1] = useState(blendConfig?.mood1 || "chill");
   const [mood2, setMood2] = useState(blendConfig?.mood2 || "focus");
   const [weight1, setWeight1] = useState(blendConfig?.weight1 ?? 60);
@@ -15,6 +15,31 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect }
       <section className="landing-content fade-in">
         <h1>MoodyDJ</h1>
         <p>Pick your vibe or blend two moods intelligently</p>
+
+        <div className="personalized-toggle-container glass">
+          <div className="toggle-info">
+            <h3>Personalized Mode {isPersonalized && "🎯"}</h3>
+            <p>Listen only to your selected favorite artists.</p>
+          </div>
+          <div className="toggle-actions">
+            <button 
+              className="edit-artists-btn" 
+              onClick={onEditArtists}
+            >
+              Edit Artists
+            </button>
+            <label className="switch">
+              <input 
+                type="checkbox" 
+                checked={isPersonalized} 
+                onChange={(e) => onTogglePersonalized(e.target.checked)} 
+                disabled={!canPersonalize}
+              />
+              <span className="slider round"></span>
+            </label>
+          </div>
+        </div>
+
         <div className="mood-grid">
           {moods.map((mood) => (
             <button
