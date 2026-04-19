@@ -5,6 +5,7 @@ import './ArtistSelection.css';
 const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
   const [searchTerm, setSearchTerm] = useState('');
+  const [warning, setWarning] = useState('');
 
   const toggleArtist = (id) => {
     const newSelected = new Set(selectedIds);
@@ -14,10 +15,14 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
       newSelected.add(id);
     }
     setSelectedIds(newSelected);
+    if (newSelected.size >= 3) setWarning('');
   };
 
   const handleContinue = () => {
-    if (selectedIds.size >= 3) {
+    if (selectedIds.size < 3) {
+      setWarning(`⚠️ We recommend at least 3 artists for the best experience. You have ${selectedIds.size}.`);
+    }
+    if (selectedIds.size > 0) {
       onComplete(Array.from(selectedIds));
     }
   };
@@ -75,12 +80,15 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
         </div>
         
         <div className="artist-footer">
+          {warning && (
+            <p style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: '0.5rem', textAlign: 'center' }}>{warning}</p>
+          )}
           <button
-            className={`artist-continue-btn ${selectedIds.size >= 3 ? 'active' : 'disabled'}`}
+            className={`artist-continue-btn ${selectedIds.size > 0 ? 'active' : 'disabled'}`}
             onClick={handleContinue}
-            disabled={selectedIds.size < 3}
+            disabled={selectedIds.size === 0}
           >
-            {selectedIds.size >= 3 ? "Continue" : `Select ${3 - selectedIds.size} more`}
+            {selectedIds.size >= 3 ? "Continue" : selectedIds.size > 0 ? `Continue with ${selectedIds.size}` : "Select at least 1"}
           </button>
         </div>
       </div>

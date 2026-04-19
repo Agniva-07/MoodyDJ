@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import Navbar from "../components/Navbar";
 
 function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, isPersonalized, onTogglePersonalized, onEditArtists, canPersonalize }) {
+  
   const [mood1, setMood1] = useState(blendConfig?.mood1 || "chill");
   const [mood2, setMood2] = useState(blendConfig?.mood2 || "focus");
   const [weight1, setWeight1] = useState(blendConfig?.weight1 ?? 60);
@@ -10,9 +12,12 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, 
 
   return (
     <div className="landing-page">
+      <Navbar />
       <div className="bg-overlay" />
       <div className="animated-gradient" />
-      <section className="landing-content fade-in">
+
+      <section className="landing-content fade-in" style={{ marginTop: '4rem' }}>
+
         <h1>MoodyDJ</h1>
         <p>Pick your vibe or blend two moods intelligently</p>
 
@@ -62,6 +67,7 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, 
         <div className="blend-panel glass">
           <h3>Mood Blend</h3>
           <p>Create a weighted mix for smarter recommendations.</p>
+
           <div className="blend-controls">
             <label>
               Primary Mood
@@ -83,6 +89,7 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, 
                 ))}
               </select>
             </label>
+
             <label>
               Secondary Mood
               <select value={mood2} onChange={(event) => setMood2(event.target.value)}>
@@ -100,6 +107,7 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, 
               <span>{mood1} ({weight1}%)</span>
               <span>{mood2} ({weight2}%)</span>
             </div>
+
             <input
               type="range"
               min="10"
@@ -118,6 +126,7 @@ function LandingPage({ moods, selectedMood, loading, blendConfig, onMoodSelect, 
             Start Blended Session
           </button>
         </div>
+
       </section>
     </div>
   );

@@ -594,13 +594,17 @@ const toScoredQueue = async (videos) => {
     });
 };
 
-// ✅ FIXED: fallback from existing cache without search
+// ✅ FIXED: fallback from existing cache without search + dedup
 const fallbackFromCache = async (mood, played) => {
   if (!searchCache.has(mood)) return [];
   const { data } = searchCache.get(mood);
   const scored = await toScoredQueue(data);
   const unplayed = scored.filter((item) => !played.has(item.videoId));
-  return unplayed.length > 0 ? unplayed : scored;
+  const result = unplayed.length > 0 ? unplayed : scored;
+  // Hard dedup guarantee
+  const dedupMap = new Map();
+  result.forEach(v => { if (!dedupMap.has(v.videoId)) dedupMap.set(v.videoId, v); });
+  return Array.from(dedupMap.values());
 };
 
 /**
@@ -773,6 +777,11 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
   adaptiveMix.push(...remainingMixed);
 
   session.videos = adaptiveMix.length > 0 ? adaptiveMix : session.videos;
+
+  // Hard dedup guarantee on final queue
+  const queueDedupMap = new Map();
+  session.videos.forEach(v => { if (!queueDedupMap.has(v.videoId)) queueDedupMap.set(v.videoId, v); });
+  session.videos = Array.from(queueDedupMap.values());
 
   // Store scores for quick access
   session.scores = {};
@@ -974,8 +983,12 @@ router.get("/songs", async (req, res) => {
         console.log("📊 QUEUE SIZE:", session.videos.length);
       }
 
+      // Hard dedup guarantee
+      const songsDedupMap = new Map();
+      scoredVideos.slice(0, 15).forEach(v => { if (!songsDedupMap.has(v.videoId)) songsDedupMap.set(v.videoId, v); });
+
       return res.json({
-        songs: scoredVideos.slice(0, 15),
+        songs: Array.from(songsDedupMap.values()),
         blend: { mood1: primaryMood, weight1: 100, mood2: null, weight2: 0 },
         meta: {
           source: result.source,
@@ -1018,8 +1031,12 @@ router.get("/songs", async (req, res) => {
       console.log("📊 QUEUE SIZE:", session.videos.length);
     }
 
+    // Hard dedup guarantee
+    const blendDedupMap = new Map();
+    scoredBlended.forEach(v => { if (!blendDedupMap.has(v.videoId)) blendDedupMap.set(v.videoId, v); });
+
     return res.json({
-      songs: scoredBlended,
+      songs: Array.from(blendDedupMap.values()),
       blend: {
         mood1: primaryMood,
         mood2: secondaryMood,
@@ -1413,5 +1430,187 @@ const cleanupSessions = () => {
 
 const cleanupInterval = setInterval(cleanupSessions, 5 * 60 * 1000);
 if (cleanupInterval.unref) cleanupInterval.unref();
+
+// ============================================================
+// ENDPOINT 7: SOLO MODE - Artist specific songs (OPTIMIZED)
+// ============================================================
+
+// --- Helper Functions ---
+
+const shuffleResults = (array) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+const fetchArtistSongs = async (artist, maxResultsPerFetch = 15) => {
+  const name = artist.toLowerCase().trim(); // FIX 8: Normalization
+  try {
+    const responses = await Promise.all([
+      axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: { part: "snippet", q: `${name} songs`, type: "video", maxResults: maxResultsPerFetch, videoCategoryId: "10", key: process.env.YOUTUBE_API_KEY, relevanceLanguage: "hi", regionCode: "IN" },
+      }),
+      axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: { part: "snippet", q: `${name} official songs`, type: "video", maxResults: maxResultsPerFetch, videoCategoryId: "10", key: process.env.YOUTUBE_API_KEY, relevanceLanguage: "hi", regionCode: "IN" },
+      }),
+    ]);
+
+    const artistVideos = [];
+    responses.forEach((response) => {
+      response.data.items.forEach((item) => {
+        artistVideos.push({
+          videoId: item.id.videoId,
+          title: item.snippet.title,
+          channelTitle: item.snippet.channelTitle,
+          thumbnail: item.snippet.thumbnails.medium.url,
+          sourceArtist: name // Keep track for quota
+        });
+      });
+    });
+    return artistVideos;
+  } catch (err) {
+    console.error(`❌ Solo search failed for artist "${name}":`, err.message);
+    return [];
+  }
+};
+
+const filterValidVideos = async (videos) => {
+  // FIX 1: Deduplicate first before fetching details
+  const seen = new Set();
+  const uniqueVideos = videos.filter(v => {
+    if (seen.has(v.videoId)) return false;
+    seen.add(v.videoId);
+    return true;
+  });
+
+  const validVideos = [];
+  const rawIds = uniqueVideos.map(v => v.videoId);
+  const poolMap = new Map();
+  uniqueVideos.forEach(v => poolMap.set(v.videoId, v));
+
+  // Batch fetch chunks of 50
+  for (let i = 0; i < rawIds.length; i += 50) {
+    const chunk = rawIds.slice(i, i + 50);
+    try {
+      const statsRes = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+         params: { part: "contentDetails,snippet", id: chunk.join(","), key: process.env.YOUTUBE_API_KEY }
+      });
+      
+      statsRes.data.items.forEach(video => {
+        const durationSeconds = parseDuration(video.contentDetails.duration);
+        const titleLower = (video.snippet?.title || "").toLowerCase();
+        
+        // FIX 5: Reject strictly invalid formats structurally before length checks
+        const isJukebox = titleLower.includes("jukebox") || titleLower.includes("audio jukebox");
+        const isLive = titleLower.includes("live mix") || titleLower.includes("megamix");
+
+        if (durationSeconds >= 120 && durationSeconds <= 480 && !isJukebox && !isLive) {
+          validVideos.push(poolMap.get(video.id));
+        }
+      });
+    } catch (e) {
+      console.error("Batch content details check failed", e.message);
+    }
+  }
+  return validVideos;
+};
+
+const distributeQuota = (validVideos, artists, targetCount = 20) => {
+  const quotaPerArtist = Math.max(1, Math.floor(targetCount / artists.length));
+  const finalVideos = [];
+  const extraPool = [];
+
+  artists.forEach(artist => {
+    const name = artist.toLowerCase().trim();
+    const artistSongs = validVideos.filter(v => v.sourceArtist === name);
+    
+    // FIX 2: Process exact top quota + hold leftovers
+    const topResults = artistSongs.slice(0, quotaPerArtist);
+    const leftovers = artistSongs.slice(quotaPerArtist);
+
+    topResults.forEach(v => finalVideos.push(v));
+    leftovers.forEach(v => extraPool.push(v));
+  });
+
+  return { finalVideos, extraPool };
+};
+
+const fillRemaining = (finalVideos, extraPool, targetCount = 20) => {
+  let remainingSlots = targetCount - finalVideos.length;
+  let extraIdx = 0;
+  
+  while (remainingSlots > 0 && extraIdx < extraPool.length) {
+    finalVideos.push(extraPool[extraIdx]);
+    remainingSlots--;
+    extraIdx++;
+  }
+  
+  return finalVideos;
+};
+
+// --- Main Route ---
+
+router.post("/solo-songs", async (req, res) => {
+  try {
+    const { selectedArtists } = req.body;
+    if (!selectedArtists || !Array.isArray(selectedArtists) || selectedArtists.length === 0) {
+      return res.status(400).json({ error: "Missing or invalid selectedArtists array" });
+    }
+
+    // FIX 4: Limit max artists per request (e.g. 6-8)
+    const limitedArtists = selectedArtists.slice(0, 8);
+    
+    // Fetch videos in parallel
+    const artistPromises = limitedArtists.map(artist => fetchArtistSongs(artist));
+    const resultsArray = await Promise.all(artistPromises);
+    
+    // Flatten array
+    let allFetchedVideos = [];
+    resultsArray.forEach(arr => {
+      allFetchedVideos = allFetchedVideos.concat(arr);
+    });
+
+    if (allFetchedVideos.length === 0) {
+      return res.status(404).json({ error: "No results fetched from source." });
+    }
+
+    // Filter by duration & deduplicate
+    const validVideos = await filterValidVideos(allFetchedVideos);
+
+    if (validVideos.length === 0) {
+      return res.status(404).json({ error: "No valid videos passed duration logic constraint." });
+    }
+
+    // Distribute quota fairly
+    const { finalVideos, extraPool } = distributeQuota(validVideos, limitedArtists, 20);
+
+    // Fill remaining slots bridging missing gaps organically 
+    let completeMix = fillRemaining(finalVideos, extraPool, 20);
+
+    // FIX 6: Fisher-Yates Safe Shuffle
+    completeMix = shuffleResults(completeMix);
+
+    // FIX 9: Final Safety Execution
+    if (completeMix.length === 0) {
+      return res.status(404).json({ error: "Internal fallback failed to sequence final output." });
+    }
+    
+    // Final deduplication assertion 
+    const finalMap = new Map();
+    completeMix.forEach(v => {
+      if (!finalMap.has(v.videoId)) {
+        finalMap.set(v.videoId, v);
+      }
+    });
+    const resultToReturn = Array.from(finalMap.values());
+
+    return res.json({ songs: resultToReturn });
+  } catch (error) {
+    console.error("❌ /solo-songs failed:", error);
+    res.status(500).json({ error: "Failed to generate solo mix logic execution" });
+  }
+});
 
 module.exports = router;

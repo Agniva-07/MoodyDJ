@@ -3,8 +3,16 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import axios from "axios";
 import LandingPage from "./pages/LandingPage";
 import PlayerPage from "./pages/PlayerPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import ProfilePage from "./pages/ProfilePage";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ArtistSelection from "./components/ArtistSelection";
+import ModeSelection from "./pages/ModeSelection";
+import SoloPage from "./pages/SoloPage";
 import { ARTISTS_DATA } from "./data/artists";
+import { useArtists } from "./context/ArtistContext";
+import { saveHistory, getUserData } from "./services/userService";
 import "./App.css";
 
 const moods = [
@@ -53,43 +61,49 @@ function App() {
   const [autoPlay] = useState(true);
   const [liked, setLiked] = useState(false);
   const playerRef = useRef(null);
+  const lastSavedVideoRef = useRef(null);
 
-  // Personalized Mode State
+  // Personalized Mode State — use global context
+  const { selectedArtists, setSelectedArtists, artistsLoaded } = useArtists();
   const [showArtistSelection, setShowArtistSelection] = useState(false);
-  const [selectedArtists, setSelectedArtists] = useState([]);
   const [isPersonalized, setIsPersonalized] = useState(false);
 
   useEffect(() => {
     setSessionId(getOrCreateSessionId());
     const savedLiked = localStorage.getItem("likedSongs");
     if (savedLiked) setLikedSongs(JSON.parse(savedLiked));
-
-    const savedArtists = localStorage.getItem("selectedArtists");
-    if (savedArtists) {
-      const parsed = JSON.parse(savedArtists);
-      setSelectedArtists(parsed);
-      if (parsed.length < 3) {
-        setShowArtistSelection(true);
-      } else {
-        const savedPersonalized = localStorage.getItem("isPersonalized");
-        setIsPersonalized(savedPersonalized === "true");
-      }
-    } else {
-      setShowArtistSelection(true);
-    }
   }, []);
 
+  // Determine if artist selection should show based on context load
   useEffect(() => {
-    if (!sessionId) return;
-    const loadRecent = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5000/api/recent?sessionId=${sessionId}`);
-        setRecentSongs(res.data.recent || []);
-      } catch (err) {
-        console.log(err);
-      }
-    };
-    loadRecent();
+    if (!artistsLoaded) return;
+    if (selectedArtists.length < 3) {
+      setShowArtistSelection(true);
+    } else {
+      setShowArtistSelection(false);
+      const savedPersonalized = localStorage.getItem("isPersonalized");
+      setIsPersonalized(savedPersonalized === "true");
+    }
+  }, [artistsLoaded, selectedArtists]);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      getUserData(user.uid).then(data => {
+        if (data && data.history) setRecentSongs(data.history);
+      });
+    } else if (sessionId) {
+      const loadRecent = async () => {
+        try {
+          const res = await axios.get(`http://localhost:5000/api/recent?sessionId=${sessionId}`);
+          setRecentSongs(res.data.recent || []);
+        } catch (err) {
+          console.log(err);
+        }
+      };
+      loadRecent();
+    }
   }, [sessionId]);
 
   const handleNextSong = () => {
@@ -225,20 +239,32 @@ function App() {
       setLiked(false);
       
       fetchStats(nowPlaying.videoId);
-      if (sessionId) {
-        axios
-          .post("http://localhost:5000/api/recent", {
-            sessionId,
-            videoId: nowPlaying.videoId,
-            title: nowPlaying.title,
-            channelTitle: nowPlaying.channelTitle,
-          })
-          .then((res) => {
-            setRecentSongs(res.data.recent || []);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
+      
+      // ✅ FIX: Protect history writes using single REF preventing duplication logic loops
+      if (lastSavedVideoRef.current !== nowPlaying.videoId) {
+        lastSavedVideoRef.current = nowPlaying.videoId;
+        
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          saveHistory(user.uid, nowPlaying).then(history => {
+            if (history) setRecentSongs(history);
+          }).catch(err => console.log("Failed to save history", err));
+        } else if (sessionId) {
+          axios
+            .post("http://localhost:5000/api/recent", {
+              sessionId,
+              videoId: nowPlaying.videoId,
+              title: nowPlaying.title,
+              channelTitle: nowPlaying.channelTitle,
+            })
+            .then((res) => {
+              setRecentSongs(res.data.recent || []);
+            })
+            .catch((err) => {
+              console.log("Local recent fetch fail:", err);
+            });
+        }
       }
     }
   }, [currentIndex, songs, sessionId]);
@@ -388,9 +414,9 @@ function App() {
   const currentSong = songs[currentIndex];
 
   const handleArtistSelectionComplete = (artists) => {
-    setSelectedArtists(artists);
-    localStorage.setItem("selectedArtists", JSON.stringify(artists));
+    setSelectedArtists(artists); // Goes through ArtistContext → Firestore + localStorage
     setShowArtistSelection(false);
+    navigate("/mode-select");
   };
 
   const handleTogglePersonalized = (checked) => {
@@ -400,59 +426,109 @@ function App() {
 
   return (
     <>
-      {showArtistSelection && (
-        <ArtistSelection 
-          initialSelected={selectedArtists} 
-          onComplete={handleArtistSelectionComplete} 
-        />
-      )}
       <Routes>
+        <Route path="/" element={<Navigate to="/mode-select" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route
-          path="/"
+          path="/home"
           element={
-            <LandingPage
-              moods={moods}
-              selectedMood={selectedMood}
-              loading={loading}
-              blendConfig={blendConfig}
-              onMoodSelect={handleMood}
-              isPersonalized={isPersonalized}
-              onTogglePersonalized={handleTogglePersonalized}
-              onEditArtists={() => setShowArtistSelection(true)}
-              canPersonalize={selectedArtists.length >= 3}
-            />
+            <ProtectedRoute>
+              {showArtistSelection && (
+                <ArtistSelection 
+                  initialSelected={selectedArtists} 
+                  onComplete={handleArtistSelectionComplete} 
+                />
+              )}
+              <LandingPage
+                moods={moods}
+                selectedMood={selectedMood}
+                loading={loading}
+                blendConfig={blendConfig}
+                onMoodSelect={handleMood}
+                isPersonalized={isPersonalized}
+                onTogglePersonalized={handleTogglePersonalized}
+                onEditArtists={() => navigate("/artists")}
+                canPersonalize={selectedArtists.length >= 3}
+              />
+            </ProtectedRoute>
           }
         />
-      <Route
-        path="/player"
-        element={
-          <PlayerPage
-            moods={moods}
-            selectedMood={selectedMood}
-            songs={songs}
-            currentIndex={currentIndex}
-            currentSong={currentSong}
-            isPlaying={isPlaying}
-            shuffle={shuffle}
-            stats={stats}
-            recentSongs={recentSongs}
-            onMoodSelect={handleMood}
-            onPlayPause={handlePlayPause}
-            onNext={handleNextSong}
-            onPrev={handlePrevSong}
-            onShuffle={() => setShuffle(!shuffle)}
-            onLike={handleLike}
-            onDislike={handleDislike}
-            onSelectSong={setCurrentIndex}
-            blendConfig={blendConfig}
-            onBlendChange={setBlendConfig}
-            likedKeywords={likedKeywords}
-            dislikedKeywords={dislikedKeywords}
-            liked={liked}
-          />
-        }
-      />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/mode-select"
+          element={
+            <ProtectedRoute>
+              {showArtistSelection && (
+                <ArtistSelection 
+                  initialSelected={selectedArtists} 
+                  onComplete={handleArtistSelectionComplete} 
+                />
+              )}
+              {!showArtistSelection && <ModeSelection artists={selectedArtists} />}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/solo"
+          element={
+            <ProtectedRoute>
+              <SoloPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/player"
+          element={
+            <ProtectedRoute>
+              <PlayerPage
+                moods={moods}
+                selectedMood={selectedMood}
+                songs={songs}
+                currentIndex={currentIndex}
+                currentSong={currentSong}
+                isPlaying={isPlaying}
+                shuffle={shuffle}
+                stats={stats}
+                recentSongs={recentSongs}
+                onMoodSelect={handleMood}
+                onPlayPause={handlePlayPause}
+                onNext={handleNextSong}
+                onPrev={handlePrevSong}
+                onShuffle={() => setShuffle(!shuffle)}
+                onLike={handleLike}
+                onDislike={handleDislike}
+                onSelectSong={setCurrentIndex}
+                blendConfig={blendConfig}
+                onBlendChange={setBlendConfig}
+                likedKeywords={likedKeywords}
+                dislikedKeywords={dislikedKeywords}
+                liked={liked}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route 
+          path="/artists" 
+          element={
+            <ProtectedRoute>
+              <ArtistSelection 
+                initialSelected={selectedArtists} 
+                onComplete={(artists) => {
+                  handleArtistSelectionComplete(artists);
+                }} 
+              />
+            </ProtectedRoute>
+          } 
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </>
   );
