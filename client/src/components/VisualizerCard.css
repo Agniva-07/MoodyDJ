@@ -1,6 +1,6 @@
 /* ============================================================
    VisualizerCard.css - Premium vinyl disc music visualizer
-   Glassmorphism · Neon glow · Smooth animations
+   Enhanced glassmorphism · Premium vinyl effect · Neon glow
    ============================================================ */
 
 /* ── Card container ── */
@@ -8,60 +8,61 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  max-width: 340px;
+  max-width: 360px;
   margin: 0 auto;
   border-radius: 28px;
   overflow: hidden;
-  background: rgba(12, 18, 40, 0.5);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(100, 150, 255, 0.18);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1.5px solid rgba(124, 58, 237, 0.2);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(124, 58, 237, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .visualizer-card.playing {
-  border-color: rgba(100, 150, 255, 0.3);
+  border-color: rgba(124, 58, 237, 0.35);
   box-shadow:
-    0 12px 48px rgba(0, 0, 0, 0.5),
-    0 0 50px rgba(59, 130, 246, 0.2),
-    0 0 100px rgba(139, 92, 246, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 16px 56px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(124, 58, 237, 0.25),
+    0 0 100px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* ── Background glow blobs ── */
+/* ── Background glow blobs (animated) ── */
 .vis-bg-glow {
   position: absolute;
-  inset: -40px;
+  inset: -50px;
   z-index: 0;
   border-radius: 50%;
   background: radial-gradient(
     circle at 30% 40%,
-    rgba(59, 130, 246, 0.25) 0%,
-    rgba(139, 92, 246, 0.15) 40%,
+    rgba(124, 58, 237, 0.3) 0%,
+    rgba(34, 211, 238, 0.15) 35%,
     transparent 70%
   );
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.8s ease;
   pointer-events: none;
-  filter: blur(40px);
-  animation: glowDrift 8s ease-in-out infinite;
+  filter: blur(50px);
+  animation: glowDrift 12s ease-in-out infinite;
 }
 
 .vis-bg-glow-2 {
   background: radial-gradient(
     circle at 70% 60%,
-    rgba(168, 85, 247, 0.2) 0%,
-    rgba(59, 130, 246, 0.12) 45%,
+    rgba(244, 114, 182, 0.2) 0%,
+    rgba(34, 211, 238, 0.12) 40%,
     transparent 70%
   );
-  animation: glowDrift 8s ease-in-out infinite reverse;
-  animation-delay: 2s;
+  animation: glowDrift 12s ease-in-out infinite reverse;
+  animation-delay: 3s;
 }
 
 .visualizer-card.playing .vis-bg-glow {
@@ -70,8 +71,8 @@
 
 @keyframes glowDrift {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(10px, -15px) scale(1.05); }
-  66% { transform: translate(-10px, 10px) scale(0.95); }
+  33% { transform: translate(15px, -20px) scale(1.08); }
+  66% { transform: translate(-15px, 15px) scale(0.92); }
 }
 
 /* ── Content layer ── */
@@ -385,16 +386,86 @@
   }
 }
 
-.vinyl-disc {
-  animation: spin 6s linear infinite;
-  animation-play-state: paused;
+/* ============================================================
+   VisualizerCard.css — Premium Vinyl Disc
+   ============================================================ */
+
+.visualizer-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.vinyl-disc.spin {
-  animation-play-state: running;
+/* DISC */
+.vinyl {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+
+  background:
+    radial-gradient(circle at center, #111 20%, #000 70%),
+    repeating-radial-gradient(
+      circle,
+      rgba(255,255,255,0.04) 0px,
+      rgba(255,255,255,0.04) 1px,
+      transparent 2px,
+      transparent 4px
+    );
+
+  position: relative;
+
+  box-shadow:
+    0 0 30px rgba(124, 58, 237, 0.25),
+    inset 0 0 20px rgba(255,255,255,0.05);
+
+  transition: transform 0.3s ease;
 }
 
-@keyframes spin {
+/* CENTER PIN */
+.vinyl::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: radial-gradient(circle, #aaa, #444);
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+}
+
+/* reflection sweep */
+.vinyl::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255,255,255,0.08),
+    transparent 70%
+  );
+  animation: shine 6s linear infinite;
+}
+
+@keyframes shine {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* ROTATION */
+.spin {
+  animation: rotateDisc 6s linear infinite;
+}
+
+@keyframes rotateDisc {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* hover */
+.vinyl:hover {
+  transform: scale(1.05) rotateX(5deg);
 }

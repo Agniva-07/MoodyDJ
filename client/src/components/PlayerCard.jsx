@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import YouTubePlayer from "./YouTubePlayer";
 import ProgressBar from "./ProgressBar";
 import VisualizerCard from "./VisualizerCard";
@@ -18,33 +18,40 @@ function PlayerCard({
   const [duration, setDuration] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
   const [localPlaying, setLocalPlaying] = useState(false);
+  const [volume, setVolume] = useState(50);
 
-  // 🔥 TIME UPDATE
+  // 🔊 Volume
+  const handleVolumeChange = (e) => {
+    const newVolume = parseInt(e.target.value);
+    setVolume(newVolume);
+    if (playerRef?.current && typeof playerRef.current.setVolume === "function") {
+      playerRef.current.setVolume(newVolume);
+    }
+  };
+
+  // ⏱ Time update
   const handleTimeUpdate = (current, dur) => {
     setCurrentTime(current);
     setDuration(dur);
   };
 
-  // 🔥 SEEK (NO MANUAL TIME SET)
+  // ⏩ Seek
   const handleSeek = (time) => {
     if (!playerRef?.current || !playerReady) return;
     playerRef.current.seekTo(time, true);
   };
 
-  // 🔥 PLAYER STATE (ONLY SOURCE OF TRUTH)
+  // 🎮 Player state
   const handlePlayerStateChange = (state) => {
-    console.log("🎮 Player state:", state);
-
     if (state === 1) setLocalPlaying(true);
     if (state === 2) setLocalPlaying(false);
 
     if (state === 0) {
-      console.log("🔚 Next song");
       onNext?.();
     }
   };
 
-  // 🔥 PLAY / PAUSE
+  // ▶️ Play / Pause
   const handlePlayPause = () => {
     if (!playerRef?.current || !playerReady) return;
 
@@ -72,12 +79,14 @@ function PlayerCard({
       )}
 
       {/* 🎨 VISUALIZER */}
-      <VisualizerCard
-        thumbnail={song?.thumbnail}
-        title={song?.title}
-        artist={song?.channelTitle}
-        isPlaying={localPlaying && playerReady}
-      />
+      <div className="visualizer-section">
+        <VisualizerCard
+          thumbnail={song?.thumbnail}
+          title={song?.title}
+          artist={song?.channelTitle}
+          isPlaying={localPlaying && playerReady}
+        />
+      </div>
 
       {/* 🎵 META */}
       <div className="track-meta">
@@ -93,17 +102,55 @@ function PlayerCard({
         isPlaying={localPlaying && playerReady}
       />
 
-      {/* 🎛 CONTROLS */}
+      {/* 🎛 CONTROLS (FIXED) */}
       <div className="controls-row">
-        <button onClick={onShuffle}>🔀</button>
-        <button onClick={onPrev} disabled={!playerReady}>⏮</button>
+        <button className="control-btn shuffle-btn" onClick={onShuffle}>
+          🔀
+        </button>
 
-        <button onClick={handlePlayPause} disabled={!playerReady}>
+        <button
+          className="control-btn"
+          onClick={onPrev}
+          disabled={!playerReady}
+        >
+          ⏮
+        </button>
+
+        <button
+          className={`control-btn play-btn ${localPlaying ? "is-playing" : ""}`}
+          onClick={handlePlayPause}
+          disabled={!playerReady}
+        >
           {localPlaying ? "⏸" : "▶"}
         </button>
 
-        <button onClick={onNext} disabled={!playerReady}>⏭</button>
-        <button onClick={onLike} disabled={!playerReady}>♥</button>
+        <button
+          className="control-btn"
+          onClick={onNext}
+          disabled={!playerReady}
+        >
+          ⏭
+        </button>
+
+        <button
+          className="control-btn like-btn"
+          onClick={onLike}
+          disabled={!playerReady}
+        >
+          ♥
+        </button>
+      </div>
+
+      {/* 🔊 VOLUME */}
+      <div className="volume-control">
+        <span>🔊</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={volume}
+          onChange={handleVolumeChange}
+        />
       </div>
 
       {/* 📊 STATS */}

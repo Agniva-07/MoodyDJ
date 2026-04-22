@@ -14,7 +14,7 @@ function VisualizerCard({ thumbnail, title, artist, isPlaying = false }) {
           <div className={`disc-glow-ring ${isPlaying ? "active" : ""}`} />
 
           {/* 🔥 NO JS CONTROL — PURE CSS */}
-          <div className={`vinyl-disc ${isPlaying ? "spin" : ""}`}>
+          <div className={`vinyl ${isPlaying ? "spin" : ""}`}>
 
             <div className="vinyl-grooves" />
 
