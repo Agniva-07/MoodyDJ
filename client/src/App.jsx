@@ -174,43 +174,8 @@ function App() {
 
   useEffect(() => {
     if (songs.length === 0) return;
-    
-    // ✅ FIXED: Properly initialize YouTube player and store instance
-    const createPlayer = () => {
-      if (playerRef.current && playerRef.current.destroy) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {
-          console.log("Player destroy error:", e);
-        }
-      }
-      
-      playerRef.current = new window.YT.Player("player", {
-        videoId: songs[0].videoId,
-        events: {
-          onReady: (event) => {
-            // ✅ FIXED: Store the player instance from onReady
-            playerRef.current = event.target;
-            event.target.setVolume(50);
-            console.log("✅ YouTube player ready:", event.target);
-          },
-          onStateChange: (event) => {
-            if (event.data === 0 && autoPlay) handleNextSong();
-            if (event.data === 1) setIsPlaying(true);
-            if (event.data === 2) setIsPlaying(false);
-          },
-        },
-      });
-    };
-
-    if (window.YT && window.YT.Player) {
-      createPlayer();
-    } else {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.body.appendChild(tag);
-      window.onYouTubeIframeAPIReady = createPlayer;
-    }
+    // YouTube embed iframe loads automatically when videoId changes
+    // No need to load YouTube IFrame API
   }, [songs, autoPlay]);
 
   useEffect(() => {
@@ -227,44 +192,39 @@ function App() {
   }, [songs, currentIndex, shuffle, playedIds]);
 
   useEffect(() => {
-    if (playerRef.current && songs.length > 0) {
-      const nowPlaying = songs[currentIndex];
+    if (songs.length === 0) return;
+    
+    const nowPlaying = songs[currentIndex];
+    
+    // Reset like state when song changes
+    setLiked(false);
+    
+    fetchStats(nowPlaying.videoId);
+    
+    // Save to history/recent (prevent duplicate saves)
+    if (lastSavedVideoRef.current !== nowPlaying.videoId) {
+      lastSavedVideoRef.current = nowPlaying.videoId;
       
-      // ✅ FIXED: Check if player has loadVideoById before calling
-      if (playerRef.current && typeof playerRef.current.loadVideoById === "function") {
-        playerRef.current.loadVideoById(nowPlaying.videoId);
-      }
-      
-      // ✅ NEW: Reset like state when song changes
-      setLiked(false);
-      
-      fetchStats(nowPlaying.videoId);
-      
-      // ✅ FIX: Protect history writes using single REF preventing duplication logic loops
-      if (lastSavedVideoRef.current !== nowPlaying.videoId) {
-        lastSavedVideoRef.current = nowPlaying.videoId;
-        
-        const userStr = localStorage.getItem("user");
-        if (userStr) {
-          const user = JSON.parse(userStr);
-          saveHistory(user.uid, nowPlaying).then(history => {
-            if (history) setRecentSongs(history);
-          }).catch(err => console.log("Failed to save history", err));
-        } else if (sessionId) {
-          axios
-            .post("http://localhost:5000/api/recent", {
-              sessionId,
-              videoId: nowPlaying.videoId,
-              title: nowPlaying.title,
-              channelTitle: nowPlaying.channelTitle,
-            })
-            .then((res) => {
-              setRecentSongs(res.data.recent || []);
-            })
-            .catch((err) => {
-              console.log("Local recent fetch fail:", err);
-            });
-        }
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        saveHistory(user.uid, nowPlaying).then(history => {
+          if (history) setRecentSongs(history);
+        }).catch(err => console.log("Failed to save history", err));
+      } else if (sessionId) {
+        axios
+          .post("http://localhost:5000/api/recent", {
+            sessionId,
+            videoId: nowPlaying.videoId,
+            title: nowPlaying.title,
+            channelTitle: nowPlaying.channelTitle,
+          })
+          .then((res) => {
+            setRecentSongs(res.data.recent || []);
+          })
+          .catch((err) => {
+            console.log("Local recent fetch fail:", err);
+          });
       }
     }
   }, [currentIndex, songs, sessionId]);
@@ -285,39 +245,20 @@ function App() {
     }
   };
 
-  // Monitor playback progress for prefetch trigger
+  // Monitor playback for Auto-DJ prefetch (simplified for embed iframe)
   useEffect(() => {
-    if (!playerRef.current) return;
+    if (!selectedMood || !sessionId) return;
 
+    // Prefetch songs periodically (every 30 seconds as fallback)
     const interval = setInterval(() => {
-      const state = playerRef.current?.getPlayerState?.();
-      const duration = playerRef.current?.getDuration?.();
-      const currentTime = playerRef.current?.getCurrentTime?.();
-
-      // Prefetch when 75% through the song
-      if (
-        state === 1 &&
-        duration > 0 &&
-        currentTime > (duration * 0.75)
-      ) {
-        prefetchNextSongs();
-        clearInterval(interval);
-      }
-    }, 5000); // Check every 5 seconds
+      prefetchNextSongs();
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [playerRef.current, sessionId, selectedMood]);
+  }, [sessionId, selectedMood]);
 
   const handlePlayPause = () => {
-    if (!playerRef.current) return;
-    const state = playerRef.current.getPlayerState();
-    if (state === 1) {
-      playerRef.current.pauseVideo();
-      setIsPlaying(false);
-    } else {
-      playerRef.current.playVideo();
-      setIsPlaying(true);
-    }
+    setIsPlaying(prev => !prev);
   };
 
   const handlePrevSong = () => {
@@ -388,10 +329,9 @@ function App() {
       setSongs(newSongs);
       setCurrentIndex(0);
 
-      // 🔥 STEP 4: Play first new song if available
-      if (newSongs.length > 0 && playerRef.current && typeof playerRef.current.loadVideoById === "function") {
+      // 🔥 STEP 4: Play first new song (YouTube embed iframe will auto-load)
+      if (newSongs.length > 0) {
         console.log("▶️ Playing new song:", newSongs[0].videoId);
-        playerRef.current.loadVideoById(newSongs[0].videoId);
         setLiked(false);
       }
 
@@ -503,6 +443,7 @@ function App() {
                 likedKeywords={likedKeywords}
                 dislikedKeywords={dislikedKeywords}
                 liked={liked}
+                playerRef={playerRef}
               />
             </ProtectedRoute>
           }

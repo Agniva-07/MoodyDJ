@@ -23,6 +23,7 @@ function PlayerPage({
   likedKeywords,
   dislikedKeywords,
   liked,
+  playerRef,
 }) {
   return (
     <div className="player-page">
@@ -43,6 +44,7 @@ function PlayerPage({
           likedKeywords={likedKeywords}
           dislikedKeywords={dislikedKeywords}
           liked={liked}
+          playerRef={playerRef}
         />
 
         <QueuePanel

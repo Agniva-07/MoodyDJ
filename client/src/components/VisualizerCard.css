@@ -1,0 +1,400 @@
+/* ============================================================
+   VisualizerCard.css - Premium vinyl disc music visualizer
+   Glassmorphism · Neon glow · Smooth animations
+   ============================================================ */
+
+/* ── Card container ── */
+.visualizer-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 340px;
+  margin: 0 auto;
+  border-radius: 28px;
+  overflow: hidden;
+  background: rgba(12, 18, 40, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(100, 150, 255, 0.18);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+
+.visualizer-card.playing {
+  border-color: rgba(100, 150, 255, 0.3);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 50px rgba(59, 130, 246, 0.2),
+    0 0 100px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── Background glow blobs ── */
+.vis-bg-glow {
+  position: absolute;
+  inset: -40px;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 40%,
+    rgba(59, 130, 246, 0.25) 0%,
+    rgba(139, 92, 246, 0.15) 40%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  filter: blur(40px);
+  animation: glowDrift 8s ease-in-out infinite;
+}
+
+.vis-bg-glow-2 {
+  background: radial-gradient(
+    circle at 70% 60%,
+    rgba(168, 85, 247, 0.2) 0%,
+    rgba(59, 130, 246, 0.12) 45%,
+    transparent 70%
+  );
+  animation: glowDrift 8s ease-in-out infinite reverse;
+  animation-delay: 2s;
+}
+
+.visualizer-card.playing .vis-bg-glow {
+  opacity: 1;
+}
+
+@keyframes glowDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(10px, -15px) scale(1.05); }
+  66% { transform: translate(-10px, 10px) scale(0.95); }
+}
+
+/* ── Content layer ── */
+.visualizer-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  gap: 1.2rem;
+}
+
+/* ── Disc container (holds everything) ── */
+.disc-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform;
+}
+
+.disc-container:hover {
+  transform: scale(1.04) perspective(600px) rotateY(4deg) rotateX(-2deg);
+}
+
+/* ── Glow ring around disc ── */
+.disc-glow-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(96, 165, 250, 0.15);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.disc-glow-ring.active {
+  opacity: 1;
+  animation: ringGlow 3s ease-in-out infinite;
+}
+
+@keyframes ringGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2), 0 0 30px rgba(139, 92, 246, 0.1);
+    border-color: rgba(96, 165, 250, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.35), 0 0 50px rgba(139, 92, 246, 0.2);
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+}
+
+/* ── Vinyl disc (rotates) ── */
+.vinyl-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  
+  /* Dark vinyl base */
+  background: radial-gradient(
+    circle at center,
+    #1a1a2e 0%,
+    #0d0d1a 35%,
+    #111122 60%,
+    #0a0a14 100%
+  );
+  
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.7),
+    0 0 25px rgba(59, 130, 246, 0.15);
+  
+  animation: vinylSpin 6s linear infinite;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+@keyframes vinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Vinyl grooves (concentric circles) ── */
+.vinyl-grooves {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    repeating-radial-gradient(
+      circle at center,
+      transparent 0px,
+      transparent 3px,
+      rgba(255, 255, 255, 0.03) 3px,
+      rgba(255, 255, 255, 0.03) 4px
+    );
+  z-index: 3;
+}
+
+/* ── Album art inside disc ── */
+.vinyl-art-mask {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 55%;
+  height: 55%;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 2;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.album-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.album-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: rgba(100, 150, 255, 0.3);
+  background: radial-gradient(circle, rgba(20, 30, 60, 0.8), rgba(10, 15, 30, 0.9));
+}
+
+/* ── Radial shine overlay ── */
+.vinyl-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 4;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.04) 30deg,
+    transparent 60deg,
+    transparent 120deg,
+    rgba(255, 255, 255, 0.06) 160deg,
+    transparent 200deg,
+    transparent 280deg,
+    rgba(255, 255, 255, 0.03) 320deg,
+    transparent 360deg
+  );
+}
+
+/* ── Reflection arc (top-left highlight) ── */
+.vinyl-reflection {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 35%,
+    transparent 100%
+  );
+}
+
+/* ── Center hole (metallic, does NOT rotate) ── */
+.vinyl-center-hole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  
+  /* Metallic gradient */
+  background: radial-gradient(
+    circle at 40% 35%,
+    #d4d4d8 0%,
+    #a1a1aa 30%,
+    #52525b 60%,
+    #27272a 100%
+  );
+  
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    inset 0 2px 3px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.6),
+    0 0 12px rgba(59, 130, 246, 0.2);
+  
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vinyl-center-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #3f3f46, #18181b);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* ── Spectrum visualizer ── */
+.spectrum-wrapper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+  height: 48px;
+  width: 100%;
+}
+
+.spectrum-side {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.vis-bar {
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(139, 92, 246, 0.9) 0%,
+    rgba(59, 130, 246, 0.8) 100%
+  );
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.4);
+  transition: height 0.15s ease;
+}
+
+.vis-bar.bouncing {
+  animation: barDance 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes barDance {
+  0% { height: 6px; }
+  25% { height: 24px; }
+  50% { height: 12px; }
+  75% { height: 36px; }
+  100% { height: 16px; }
+}
+
+/* Center pulse dot */
+.spectrum-center-dot-wrap {
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spectrum-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.5);
+  transition: all 0.3s ease;
+}
+
+.spectrum-pulse.active {
+  background: #60a5fa;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.6; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .visualizer-card {
+    max-width: 280px;
+    border-radius: 22px;
+  }
+
+  .visualizer-content {
+    padding: 1.5rem 1rem;
+  }
+
+  .disc-container {
+    width: 160px;
+    height: 160px;
+  }
+
+  .vinyl-center-hole {
+    width: 26px;
+    height: 26px;
+  }
+
+  .spectrum-wrapper {
+    height: 36px;
+  }
+
+  .vis-bar {
+    width: 2.5px;
+  }
+}
+
+.vinyl-disc {
+  animation: spin 6s linear infinite;
+  animation-play-state: paused;
+}
+
+.vinyl-disc.spin {
+  animation-play-state: running;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

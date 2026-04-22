@@ -1,103 +1,123 @@
-function formatCount(value) {
-  if (!value) return "0";
-  const numeric = Number(value);
-  if (numeric >= 1000000) return `${(numeric / 1000000).toFixed(1)}M`;
-  if (numeric >= 1000) return `${(numeric / 1000).toFixed(1)}K`;
-  return numeric.toString();
-}
+import { useState } from "react";
+import YouTubePlayer from "./YouTubePlayer";
+import ProgressBar from "./ProgressBar";
+import VisualizerCard from "./VisualizerCard";
 
 function PlayerCard({
   song,
-  isPlaying,
   stats,
-  shuffle,
-  onPlayPause,
   onPrev,
   onNext,
   onShuffle,
   onLike,
-  onDislike,
   likedKeywords,
   dislikedKeywords,
-  liked,
+  playerRef,
 }) {
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playerReady, setPlayerReady] = useState(false);
+  const [localPlaying, setLocalPlaying] = useState(false);
+
+  // 🔥 TIME UPDATE
+  const handleTimeUpdate = (current, dur) => {
+    setCurrentTime(current);
+    setDuration(dur);
+  };
+
+  // 🔥 SEEK (NO MANUAL TIME SET)
+  const handleSeek = (time) => {
+    if (!playerRef?.current || !playerReady) return;
+    playerRef.current.seekTo(time, true);
+  };
+
+  // 🔥 PLAYER STATE (ONLY SOURCE OF TRUTH)
+  const handlePlayerStateChange = (state) => {
+    console.log("🎮 Player state:", state);
+
+    if (state === 1) setLocalPlaying(true);
+    if (state === 2) setLocalPlaying(false);
+
+    if (state === 0) {
+      console.log("🔚 Next song");
+      onNext?.();
+    }
+  };
+
+  // 🔥 PLAY / PAUSE
+  const handlePlayPause = () => {
+    if (!playerRef?.current || !playerReady) return;
+
+    const state = playerRef.current.getPlayerState();
+
+    if (state === 1) {
+      playerRef.current.pauseVideo();
+    } else {
+      playerRef.current.playVideo();
+    }
+  };
+
   return (
-    <section className="player-card fade-in">
-      <div className="album-orb-wrap">
-        <div className="album-orb">
-          {song?.thumbnail ? (
-            <img src={song.thumbnail} alt={song.title} />
-          ) : (
-            <span>▶♫</span>
-          )}
-        </div>
-      </div>
+    <section className="player-card">
 
+      {/* 🎬 PLAYER */}
+      {song?.videoId && (
+        <YouTubePlayer
+          videoId={song.videoId}
+          onStateChange={handlePlayerStateChange}
+          onTimeUpdate={handleTimeUpdate}
+          playerRef={playerRef}
+          onPlayerReady={() => setPlayerReady(true)}
+        />
+      )}
+
+      {/* 🎨 VISUALIZER */}
+      <VisualizerCard
+        thumbnail={song?.thumbnail}
+        title={song?.title}
+        artist={song?.channelTitle}
+        isPlaying={localPlaying && playerReady}
+      />
+
+      {/* 🎵 META */}
       <div className="track-meta">
-        <h2>{song?.title || "Choose a mood to begin"}</h2>
-        <p>{song?.channelTitle || "Now streaming..."}</p>
+        <h2>{song?.title}</h2>
+        <p>{song?.channelTitle}</p>
       </div>
 
-      <div className="radio-device glass">
-        <div className="youtube-shell">
-          <div id="player" className="youtube-frame" />
-        </div>
-      </div>
+      {/* ⏱ PROGRESS */}
+      <ProgressBar
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={handleSeek}
+        isPlaying={localPlaying && playerReady}
+      />
 
-      <div className="spectrum">
-        {Array.from({ length: 24 }).map((_, index) => (
-          <span
-            key={`bar-${index}`}
-            className="spectrum-bar"
-            style={{
-              animationDuration: `${0.7 + ((index % 6) * 0.12)}s`,
-              animationDelay: `${index * 0.04}s`,
-            }}
-          />
-        ))}
-      </div>
-
+      {/* 🎛 CONTROLS */}
       <div className="controls-row">
-        <button type="button" className="control-btn" onClick={onPrev} aria-label="Previous song">
-          ⏮
+        <button onClick={onShuffle}>🔀</button>
+        <button onClick={onPrev} disabled={!playerReady}>⏮</button>
+
+        <button onClick={handlePlayPause} disabled={!playerReady}>
+          {localPlaying ? "⏸" : "▶"}
         </button>
-        <button type="button" className="control-btn play-btn" onClick={onPlayPause} aria-label="Play or pause">
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-        <button type="button" className="control-btn" onClick={onNext} aria-label="Next song">
-          ⏭
-        </button>
-        <button
-          type="button"
-          className={`control-btn ${shuffle ? "active" : ""}`}
-          onClick={onShuffle}
-          aria-label="Toggle shuffle"
-        >
-          🔀
-        </button>
-        <button 
-          type="button" 
-          className={`control-btn like-btn ${liked ? "active" : ""}`} 
-          onClick={onLike} 
-          aria-label="Like song"
-          style={{ color: liked ? "#ff4444" : "white" }}
-        >
-          ♥
-        </button>
-        <button type="button" className="control-btn" onClick={onDislike} aria-label="Dislike song">
-          👎
-        </button>
+
+        <button onClick={onNext} disabled={!playerReady}>⏭</button>
+        <button onClick={onLike} disabled={!playerReady}>♥</button>
       </div>
 
-      <div className="feedback-row">
-        <span>👍 {likedKeywords?.slice(-2).join(", ") || "none"}</span>
-        <span>👎 {dislikedKeywords?.slice(-2).join(", ") || "none"}</span>
-      </div>
-
+      {/* 📊 STATS */}
       <div className="stats-row">
-        <span>👁 Views {formatCount(stats?.viewCount)}</span>
-        <span>❤️ Likes {formatCount(stats?.likeCount)}</span>
+        <span>👁 {stats?.viewCount || 0}</span>
+        <span>❤️ {stats?.likeCount || 0}</span>
       </div>
+
+      {/* 👍👎 */}
+      <div className="feedback-row">
+        <span>👍 {likedKeywords?.join(", ") || "none"}</span>
+        <span>👎 {dislikedKeywords?.join(", ") || "none"}</span>
+      </div>
+
     </section>
   );
 }
