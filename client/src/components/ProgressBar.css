@@ -1,86 +1,133 @@
-/* ============================================================
-   ProgressBar.css — Ultra Premium Neon Bar
-   ============================================================ */
-
 .progress-container {
-  display: flex;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
   gap: 1rem;
   width: 100%;
-  padding: 1.2rem 0;
-  color: #94a3b8;
-  font-size: 0.75rem;
+  padding: 0.85rem 0 0.35rem;
 }
 
 .time-display {
-  min-width: 45px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   text-align: center;
-  color: #38bdf8;
-  transition: all 0.3s ease;
 }
 
 .progress-bar {
-  flex: 1;
   position: relative;
-  height: 10px;
+  height: 22px;
   cursor: pointer;
+  will-change: transform;
 }
 
-/* TRACK */
 .progress-track {
   position: absolute;
-  inset: 0;
+  inset: 5px 0;
+  overflow: hidden;
   border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(2, 6, 23, 0.28)),
+    rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 4px 4px 10px rgba(0, 0, 0, 0.65),
+    inset -4px -4px 10px rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
-/* FILL */
 .progress-fill {
   position: absolute;
-  inset: 0;
-  width: 0%;
-  border-radius: 999px;
-
-  background: linear-gradient(90deg, #7c3aed, #22d3ee);
-
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 85%, white 10%), color-mix(in srgb, var(--accent) 78%, #22d3ee 30%));
   box-shadow:
-    0 0 10px rgba(124, 58, 237, 0.6),
-    0 0 20px rgba(34, 211, 238, 0.4);
-
+    0 0 10px var(--accent-glow),
+    0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
   transition: width 0.1s linear;
 }
 
-/* THUMB */
+.progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent 75%);
+  opacity: 0.7;
+}
+
 .progress-thumb {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-
-  background: linear-gradient(135deg, #7c3aed, #22d3ee);
-
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.25) 28%, var(--accent) 78%);
   box-shadow:
-    0 0 12px rgba(124, 58, 237, 0.8);
-
-  transition: all 0.2s ease;
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    0 0 10px var(--accent-glow),
+    0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+  transform: translate(-50%, -50%);
+  will-change: transform, left;
 }
 
-/* hover */
-.progress-bar:hover .progress-thumb {
-  transform: translate(-50%, -50%) scale(1.2);
+.progress-bar:hover .progress-thumb,
+.progress-bar.dragging .progress-thumb {
+  transform: translate(-50%, -50%) scale(1.14);
 }
 
-/* playing pulse */
 .progress-bar.playing .progress-thumb {
-  animation: pulse 1.2s infinite;
+  animation: progressPulse 1.8s infinite;
 }
 
-@keyframes pulse {
-  0% { box-shadow: 0 0 10px rgba(124, 58, 237, 0.6); }
-  50% { box-shadow: 0 0 20px rgba(34, 211, 238, 1); }
-  100% { box-shadow: 0 0 10px rgba(124, 58, 237, 0.6); }
+.progress-hover {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+  transform: translateX(-50%);
+}
+
+.progress-tooltip {
+  position: absolute;
+  top: -2.4rem;
+  transform: translateX(-50%);
+  padding: 0.38rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  background: rgba(2, 6, 23, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+@keyframes progressPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 10px 24px rgba(0, 0, 0, 0.45),
+      0 0 10px var(--accent-glow),
+      0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 10px 24px rgba(0, 0, 0, 0.5),
+      0 0 16px var(--accent-glow),
+      0 0 32px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
+@media (max-width: 640px) {
+  .progress-container {
+    grid-template-columns: 46px minmax(0, 1fr) 46px;
+    gap: 0.65rem;
+  }
 }

@@ -1,199 +1,156 @@
-/* ============================================================
-   VisualizerCard.css - Premium vinyl disc music visualizer
-   Enhanced glassmorphism · Premium vinyl effect · Neon glow
-   ============================================================ */
-
-/* ── Card container ── */
 .visualizer-card {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  max-width: 360px;
-  margin: 0 auto;
-  border-radius: 28px;
+  width: min(100%, 420px);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  border-radius: 34px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.42)),
+    rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(124, 58, 237, 0.15),
+    0 26px 70px rgba(0, 0, 0, 0.55),
+    0 0 36px color-mix(in srgb, var(--accent) 20%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
 }
 
-.visualizer-card.playing {
-  border-color: rgba(124, 58, 237, 0.35);
-  box-shadow:
-    0 16px 56px rgba(0, 0, 0, 0.6),
-    0 0 60px rgba(124, 58, 237, 0.25),
-    0 0 100px rgba(34, 211, 238, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+.visualizer-card::before,
+.visualizer-card::after {
+  content: "";
+  position: absolute;
+  inset: auto;
+  border-radius: 50%;
+  filter: blur(50px);
+  opacity: 0.4;
+  pointer-events: none;
 }
 
-/* ── Background glow blobs (animated) ── */
+.visualizer-card::before {
+  width: 180px;
+  height: 180px;
+  top: 8%;
+  left: 8%;
+  background: color-mix(in srgb, var(--accent) 48%, transparent);
+}
+
+.visualizer-card::after {
+  width: 140px;
+  height: 140px;
+  right: 10%;
+  bottom: 12%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .vis-bg-glow {
   position: absolute;
-  inset: -50px;
-  z-index: 0;
+  inset: -15%;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 30% 40%,
-    rgba(124, 58, 237, 0.3) 0%,
-    rgba(34, 211, 238, 0.15) 35%,
-    transparent 70%
-  );
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 25%, transparent), transparent 60%);
   opacity: 0;
-  transition: opacity 0.8s ease;
-  pointer-events: none;
-  filter: blur(50px);
-  animation: glowDrift 12s ease-in-out infinite;
+  transform: scale(0.9);
+  transition: all 0.25s var(--easing-standard);
 }
 
 .vis-bg-glow-2 {
-  background: radial-gradient(
-    circle at 70% 60%,
-    rgba(244, 114, 182, 0.2) 0%,
-    rgba(34, 211, 238, 0.12) 40%,
-    transparent 70%
-  );
-  animation: glowDrift 12s ease-in-out infinite reverse;
-  animation-delay: 3s;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 65%);
+  animation: visualizerBreathe 10s ease-in-out infinite reverse;
 }
 
 .visualizer-card.playing .vis-bg-glow {
   opacity: 1;
+  transform: scale(1.03);
+  animation: visualizerBreathe 12s ease-in-out infinite;
 }
 
-@keyframes glowDrift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(15px, -20px) scale(1.08); }
-  66% { transform: translate(-15px, 15px) scale(0.92); }
-}
-
-/* ── Content layer ── */
 .visualizer-content {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1.5rem;
-  gap: 1.2rem;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
 }
 
-/* ── Disc container (holds everything) ── */
 .disc-container {
   position: relative;
-  width: 200px;
-  height: 200px;
-  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  width: min(68vw, 260px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
   will-change: transform;
 }
 
-.disc-container:hover {
-  transform: scale(1.04) perspective(600px) rotateY(4deg) rotateX(-2deg);
-}
-
-/* ── Glow ring around disc ── */
 .disc-glow-ring {
   position: absolute;
-  inset: -8px;
+  inset: -10px;
   border-radius: 50%;
-  border: 2px solid rgba(96, 165, 250, 0.15);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 0 20px var(--accent-glow);
   opacity: 0;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
+  transform: scale(0.95);
 }
 
 .disc-glow-ring.active {
   opacity: 1;
-  animation: ringGlow 3s ease-in-out infinite;
+  animation: vinylHalo 2.6s ease-in-out infinite;
 }
 
-@keyframes ringGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2), 0 0 30px rgba(139, 92, 246, 0.1);
-    border-color: rgba(96, 165, 250, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(59, 130, 246, 0.35), 0 0 50px rgba(139, 92, 246, 0.2);
-    border-color: rgba(96, 165, 250, 0.35);
-  }
-}
-
-/* ── Vinyl disc (rotates) ── */
-.vinyl-disc {
-  position: absolute;
-  inset: 0;
+.vinyl {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   overflow: hidden;
-  
-  /* Dark vinyl base */
-  background: radial-gradient(
-    circle at center,
-    #1a1a2e 0%,
-    #0d0d1a 35%,
-    #111122 60%,
-    #0a0a14 100%
-  );
-  
+  background:
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.96) 0 18%, rgba(16, 16, 20, 0.98) 22%, rgba(5, 10, 18, 0.98) 58%, rgba(1, 4, 10, 0.98) 100%),
+    repeating-radial-gradient(circle at center, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 4px);
   box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 -2px 8px rgba(0, 0, 0, 0.7),
-    0 0 25px rgba(59, 130, 246, 0.15);
-  
-  animation: vinylSpin 6s linear infinite;
-  animation-play-state: paused;
+    24px 24px 44px rgba(0, 0, 0, 0.55),
+    -16px -16px 32px rgba(255, 255, 255, 0.03),
+    inset 0 2px 4px rgba(255, 255, 255, 0.05),
+    inset 0 -12px 18px rgba(0, 0, 0, 0.68),
+    0 0 28px color-mix(in srgb, var(--accent) 22%, transparent);
   will-change: transform;
 }
 
-@keyframes vinylSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.vinyl.spin {
+  animation: rotateDisc 5.8s linear infinite;
 }
 
-/* ── Vinyl grooves (concentric circles) ── */
-.vinyl-grooves {
+.vinyl-grooves,
+.vinyl-shine,
+.vinyl-reflection {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   pointer-events: none;
-  background:
-    repeating-radial-gradient(
-      circle at center,
-      transparent 0px,
-      transparent 3px,
-      rgba(255, 255, 255, 0.03) 3px,
-      rgba(255, 255, 255, 0.03) 4px
-    );
-  z-index: 3;
 }
 
-/* ── Album art inside disc ── */
+.vinyl-grooves {
+  background:
+    repeating-radial-gradient(circle at center, transparent 0 6px, rgba(255, 255, 255, 0.03) 6px 7px, transparent 7px 12px),
+    radial-gradient(circle at center, transparent 0 24%, rgba(255, 255, 255, 0.02) 25%, transparent 26%);
+  opacity: 0.85;
+}
+
 .vinyl-art-mask {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 55%;
-  height: 55%;
+  inset: 28%;
   border-radius: 50%;
   overflow: hidden;
-  z-index: 2;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
-  border: 2px solid rgba(255, 255, 255, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 22px rgba(0, 0, 0, 0.45),
+    0 0 0 8px rgba(255, 255, 255, 0.02);
 }
 
-.album-art {
+.album-art,
+.vinyl-art-mask img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -203,269 +160,146 @@
 .album-placeholder {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2.5rem;
-  color: rgba(100, 150, 255, 0.3);
-  background: radial-gradient(circle, rgba(20, 30, 60, 0.8), rgba(10, 15, 30, 0.9));
+  display: grid;
+  place-items: center;
+  font-size: 2.4rem;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.16), transparent 25%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 45%, #0f172a), #111827);
 }
 
-/* ── Radial shine overlay ── */
 .vinyl-shine {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  z-index: 4;
-  pointer-events: none;
   background: conic-gradient(
     from 0deg,
-    transparent 0deg,
-    rgba(255, 255, 255, 0.04) 30deg,
-    transparent 60deg,
-    transparent 120deg,
-    rgba(255, 255, 255, 0.06) 160deg,
-    transparent 200deg,
-    transparent 280deg,
-    rgba(255, 255, 255, 0.03) 320deg,
+    transparent 0deg 35deg,
+    rgba(255, 255, 255, 0.12) 50deg,
+    transparent 82deg 150deg,
+    rgba(255, 255, 255, 0.08) 170deg,
+    transparent 220deg 300deg,
+    rgba(255, 255, 255, 0.06) 320deg,
     transparent 360deg
   );
+  mix-blend-mode: screen;
 }
 
-/* ── Reflection arc (top-left highlight) ── */
+.visualizer-card.playing .vinyl-shine {
+  animation: rotateDisc 9s linear infinite reverse;
+}
+
 .vinyl-reflection {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  z-index: 5;
-  pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    transparent 35%,
-    transparent 100%
-  );
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.14), transparent 35%);
+  mix-blend-mode: screen;
+  opacity: 0.5;
 }
 
-/* ── Center hole (metallic, does NOT rotate) ── */
 .vinyl-center-hole {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  aspect-ratio: 1;
   border-radius: 50%;
-  
-  /* Metallic gradient */
-  background: radial-gradient(
-    circle at 40% 35%,
-    #d4d4d8 0%,
-    #a1a1aa 30%,
-    #52525b 60%,
-    #27272a 100%
-  );
-  
+  background:
+    radial-gradient(circle at 35% 35%, #d4d4d8, #71717a 40%, #18181b 80%);
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.7),
-    inset 0 2px 3px rgba(255, 255, 255, 0.25),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.6),
-    0 0 12px rgba(59, 130, 246, 0.2);
-  
-  border: 1px solid rgba(255, 255, 255, 0.1);
+    0 0 0 6px rgba(255, 255, 255, 0.04),
+    0 8px 15px rgba(0, 0, 0, 0.45),
+    inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  z-index: 2;
 }
 
 .vinyl-center-dot {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 8px;
-  height: 8px;
+  inset: 11px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #3f3f46, #18181b);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1);
+  background: #111827;
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.08);
 }
 
-/* ── Spectrum visualizer ── */
 .spectrum-wrapper {
+  position: absolute;
+  bottom: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
   display: flex;
-  align-items: flex-end;
   justify-content: center;
-  gap: 1rem;
-  height: 48px;
-  width: 100%;
 }
 
 .spectrum-side {
   display: flex;
-  gap: 3px;
-  align-items: flex-end;
+  align-items: end;
+  gap: 0.28rem;
 }
 
 .vis-bar {
-  width: 3px;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(
-    180deg,
-    rgba(139, 92, 246, 0.9) 0%,
-    rgba(59, 130, 246, 0.8) 100%
-  );
-  box-shadow: 0 0 6px rgba(96, 165, 250, 0.4);
-  transition: height 0.15s ease;
+  width: 4px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), var(--accent));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
+  transform-origin: center bottom;
 }
 
 .vis-bar.bouncing {
-  animation: barDance 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes barDance {
-  0% { height: 6px; }
-  25% { height: 24px; }
-  50% { height: 12px; }
-  75% { height: 36px; }
-  100% { height: 16px; }
-}
-
-/* Center pulse dot */
-.spectrum-center-dot-wrap {
-  width: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spectrum-pulse {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(96, 165, 250, 0.5);
-  transition: all 0.3s ease;
-}
-
-.spectrum-pulse.active {
-  background: #60a5fa;
-  box-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
-  animation: dotPulse 1.5s ease-in-out infinite;
-}
-
-@keyframes dotPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.6); opacity: 0.6; }
-}
-
-/* ── Responsive ── */
-@media (max-width: 640px) {
-  .visualizer-card {
-    max-width: 280px;
-    border-radius: 22px;
-  }
-
-  .visualizer-content {
-    padding: 1.5rem 1rem;
-  }
-
-  .disc-container {
-    width: 160px;
-    height: 160px;
-  }
-
-  .vinyl-center-hole {
-    width: 26px;
-    height: 26px;
-  }
-
-  .spectrum-wrapper {
-    height: 36px;
-  }
-
-  .vis-bar {
-    width: 2.5px;
-  }
-}
-
-/* ============================================================
-   VisualizerCard.css — Premium Vinyl Disc
-   ============================================================ */
-
-.visualizer-card {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* DISC */
-.vinyl {
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-
-  background:
-    radial-gradient(circle at center, #111 20%, #000 70%),
-    repeating-radial-gradient(
-      circle,
-      rgba(255,255,255,0.04) 0px,
-      rgba(255,255,255,0.04) 1px,
-      transparent 2px,
-      transparent 4px
-    );
-
-  position: relative;
-
-  box-shadow:
-    0 0 30px rgba(124, 58, 237, 0.25),
-    inset 0 0 20px rgba(255,255,255,0.05);
-
-  transition: transform 0.3s ease;
-}
-
-/* CENTER PIN */
-.vinyl::after {
-  content: "";
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  background: radial-gradient(circle, #aaa, #444);
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 8px rgba(255,255,255,0.3);
-}
-
-/* reflection sweep */
-.vinyl::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: linear-gradient(
-    120deg,
-    transparent 30%,
-    rgba(255,255,255,0.08),
-    transparent 70%
-  );
-  animation: shine 6s linear infinite;
-}
-
-@keyframes shine {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
-}
-
-/* ROTATION */
-.spin {
-  animation: rotateDisc 6s linear infinite;
+  animation: equalizerBounce 0.75s ease-in-out infinite alternate;
 }
 
 @keyframes rotateDisc {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* hover */
-.vinyl:hover {
-  transform: scale(1.05) rotateX(5deg);
+@keyframes vinylHalo {
+  0%,
+  100% {
+    transform: scale(0.96);
+    box-shadow: 0 0 18px var(--accent-glow);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 26px var(--accent-glow), 0 0 44px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+@keyframes equalizerBounce {
+  0% {
+    height: 8px;
+  }
+  50% {
+    height: 34px;
+  }
+  100% {
+    height: 16px;
+  }
+}
+
+@keyframes visualizerBreathe {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 640px) {
+  .visualizer-card {
+    border-radius: 28px;
+  }
+
+  .visualizer-content {
+    padding: 1.4rem;
+  }
+
+  .disc-container {
+    width: min(74vw, 210px);
+  }
 }
