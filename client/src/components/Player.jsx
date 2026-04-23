@@ -1,3 +1,5 @@
+import YouTubePlayer from "./YouTubePlayer";
+
 function formatCount(value) {
   if (!value) return "0";
   const numeric = Number(value);
@@ -21,7 +23,7 @@ function Player({
     <section className="player-core glass fade-in">
       <div className="radio-device">
         <div className="youtube-shell">
-          <div id="player" className="youtube-frame" />
+          {song?.videoId && <YouTubePlayer videoId={song.videoId} />}
         </div>
       </div>
 
