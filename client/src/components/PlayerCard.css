@@ -1,0 +1,86 @@
+.player-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.player-card__noise,
+.player-card__aura {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.player-card__noise {
+  opacity: 0.08;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.12) 0.7px, transparent 0.7px),
+    radial-gradient(rgba(255, 255, 255, 0.08) 0.7px, transparent 0.7px);
+  background-position: 0 0, 14px 14px;
+  background-size: 28px 28px;
+  mix-blend-mode: soft-light;
+}
+
+.player-card__aura {
+  background:
+    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent) 55%, transparent) 0%, transparent 45%),
+    radial-gradient(circle at 84% 18%, rgba(255, 255, 255, 0.08), transparent 32%);
+  opacity: 0.45;
+  filter: blur(6px);
+  animation: playerAuraFloat 14s ease-in-out infinite;
+}
+
+.player-card__aura--secondary {
+  background:
+    radial-gradient(circle at 72% 80%, color-mix(in srgb, var(--accent) 42%, #22d3ee 18%) 0%, transparent 40%);
+  opacity: 0.35;
+  animation-direction: reverse;
+  animation-duration: 18s;
+}
+
+.player-card__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.track-meta__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.volume-icon,
+.volume-value {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.volume-slider-shell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+@keyframes playerAuraFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12px, -10px, 0) scale(1.04);
+  }
+}

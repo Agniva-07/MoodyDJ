@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, runTransaction, increment } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, runTransaction, increment } from "firebase/firestore";
 
 export const syncUserToFirestore = async (user) => {
   if (!user || !user.uid) return;
@@ -64,7 +64,7 @@ export const saveHistory = async (userId, song) => {
         title: song.title || "Unknown Title",
         channelTitle: song.channelTitle || "Unknown Artist",
         thumbnail: song.thumbnail || "",
-        playedAt: serverTimestamp()
+        playedAt: new Date()
       };
 
       history.unshift(historyItem);

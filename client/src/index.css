@@ -1,22 +1,49 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap");
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Poppins", "Segoe UI", sans-serif;
+  font-family: "Outfit", "Inter", sans-serif;
 }
 
 :root {
-  color: #f8fafc;
-  background-color: #020617;
+  --accent: #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.6);
+  --surface-0: #030712;
+  --surface-1: rgba(15, 23, 42, 0.5);
+  --surface-2: rgba(15, 23, 42, 0.72);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-primary);
+  background-color: var(--surface-0);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   min-width: 320px;
-  background-color: #020617;
-  color: #f8fafc;
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.1), transparent 32%),
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.08), transparent 30%),
+    var(--surface-0);
+  color: var(--text-primary);
   overflow-x: hidden;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition: all 0.25s var(--easing-standard);
 }
