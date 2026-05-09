@@ -1,5 +1,6 @@
 const express = require("express");
 const axios = require("axios");
+const { getRecentSongs, addRecentSongs } = require("../recentSongs");
 
 const router = express.Router();
 
@@ -54,6 +55,10 @@ const QUALITY_BOOST_PATTERNS = {
   lowQualityKeywords: /remix|cover|nightcore|phonk remix|ultra remix|trap remix|hardstyle/i,
 };
 
+const RECENT_SONG_MIN_FRESH = 5;
+const SEARCH_MAX_PAGES = 2;
+const SEARCH_RESULTS_PER_PAGE = 10;
+
 // ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
@@ -65,6 +70,71 @@ const parseList = (value) => {
     .split(",")
     .map((token) => token.trim().toLowerCase())
     .filter(Boolean);
+};
+
+const runNonBlocking = (task) => {
+  Promise.resolve()
+    .then(task)
+    .catch((error) => {
+      console.error("Background task failed:", error.message);
+    });
+};
+
+const applyRecentSongFilter = (videos, recentSongs = [], minFreshCount = RECENT_SONG_MIN_FRESH) => {
+  if (!Array.isArray(videos) || videos.length === 0) return [];
+
+  const recentIds = new Set(
+    (recentSongs || []).map((entry) => entry?.videoId).filter(Boolean)
+  );
+
+  if (recentIds.size === 0) return videos;
+
+  const fresh = [];
+  const seen = [];
+
+  videos.forEach((video) => {
+    if (!video?.videoId) return;
+    if (recentIds.has(video.videoId)) {
+      seen.push(video);
+    } else {
+      fresh.push(video);
+    }
+  });
+
+  // Prefer unseen songs; only bring older ones back when the fresh pool gets too small.
+  if (fresh.length >= minFreshCount) {
+    return fresh;
+  }
+
+  return [...fresh, ...seen];
+};
+
+const fetchSearchPages = async (query, maxPages = SEARCH_MAX_PAGES, maxResults = SEARCH_RESULTS_PER_PAGE) => {
+  const items = [];
+  let nextPageToken;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const response = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+      params: {
+        part: "snippet",
+        q: query,
+        type: "video",
+        maxResults,
+        pageToken: nextPageToken,
+        videoCategoryId: "10",
+        key: process.env.YOUTUBE_API_KEY,
+        relevanceLanguage: "hi",
+        regionCode: "IN",
+      },
+    });
+
+    items.push(...(response.data.items || []));
+    nextPageToken = response.data.nextPageToken;
+
+    if (!nextPageToken) break;
+  }
+
+  return items;
 };
 
 const toWeight = (value, fallback) => {
@@ -268,7 +338,7 @@ const parseDuration = (duration) => {
 const performMultiQuerySearch = async (mood, query, isPersonalized = false, artists = []) => {
   let allVideos = [];
   const videoIdSet = new Set();
-  const maxResultsPerFetch = 15;
+  const maxResultsPerFetch = SEARCH_RESULTS_PER_PAGE;
 
   if (isPersonalized && artists.length > 0) {
     console.log("Artists:", artists);
@@ -280,35 +350,13 @@ const performMultiQuerySearch = async (mood, query, isPersonalized = false, arti
     const artistPromises = artists.map(async (artist) => {
       try {
         const responses = await Promise.all([
-          axios.get("https://www.googleapis.com/youtube/v3/search", {
-            params: {
-              part: "snippet",
-              q: `${artist} songs`, // Strictly ONLY artist name
-              type: "video",
-              maxResults: maxResultsPerFetch,
-              videoCategoryId: "10",
-              key: process.env.YOUTUBE_API_KEY,
-              relevanceLanguage: "hi",
-              regionCode: "IN",
-            },
-          }),
-          axios.get("https://www.googleapis.com/youtube/v3/search", {
-            params: {
-              part: "snippet",
-              q: `${artist} playlist`, // To help get playlists
-              type: "video",
-              maxResults: maxResultsPerFetch,
-              videoCategoryId: "10",
-              key: process.env.YOUTUBE_API_KEY,
-              relevanceLanguage: "hi",
-              regionCode: "IN",
-            },
-          })
+          fetchSearchPages(`${artist} songs`, SEARCH_MAX_PAGES, maxResultsPerFetch),
+          fetchSearchPages(`${artist} hits`, SEARCH_MAX_PAGES, maxResultsPerFetch),
         ]);
 
         const artistVideos = [];
-        responses.forEach(response => {
-          response.data.items.forEach(item => {
+        responses.forEach((items) => {
+          items.forEach((item) => {
             if (!videoIdSet.has(item.id.videoId)) {
               videoIdSet.add(item.id.videoId);
               artistVideos.push({
@@ -360,32 +408,20 @@ const performMultiQuerySearch = async (mood, query, isPersonalized = false, arti
     // Generic mode multi-query
     const searchQueries = [
       `${query} songs`,
-      `${query} playlist`,
+      `${query} hits`,
       `${query} mix`,
-      `${query} jukebox`,
     ];
 
     const searchPromises = searchQueries.map(q =>
-      axios.get("https://www.googleapis.com/youtube/v3/search", {
-        params: {
-          part: "snippet",
-          q,
-          type: "video",
-          maxResults: maxResultsPerFetch,
-          videoCategoryId: "10",
-          key: process.env.YOUTUBE_API_KEY,
-          relevanceLanguage: "hi",
-          regionCode: "IN",
-        },
-      }).catch(err => {
+      fetchSearchPages(q, SEARCH_MAX_PAGES, maxResultsPerFetch).catch(err => {
         console.error(`❌ Multi-query search failed for "${q}":`, err.message);
-        return { data: { items: [] } };
+        return [];
       })
     );
 
     const responses = await Promise.all(searchPromises);
-    responses.forEach(response => {
-      response.data.items.forEach((item) => {
+    responses.forEach((items) => {
+      items.forEach((item) => {
         const videoId = item.id.videoId;
         if (!videoIdSet.has(videoId)) {
           videoIdSet.add(videoId);
@@ -935,6 +971,7 @@ router.get("/songs", async (req, res) => {
       likedKeywords,
       dislikedKeywords,
       sessionId,
+      userId,
       isPersonalized,
       selectedArtists,
     } = req.query;
@@ -966,10 +1003,11 @@ router.get("/songs", async (req, res) => {
     }
 
     const searchOpts = { allowSearch: true, isPersonalized: isPers, artists: artists };
+    const recentSongs = await getRecentSongs(userId);
 
     if (!secondaryMood) {
       const result = await searchMoodVideos(primaryMood, query1, searchOpts);
-      const videos = result.videos;
+      const videos = applyRecentSongFilter(result.videos, recentSongs);
       // ✅ FIXED: /songs now uses scoring pipeline before queue store
       const scoredVideos = await toScoredQueue(videos);
 
@@ -987,8 +1025,14 @@ router.get("/songs", async (req, res) => {
       const songsDedupMap = new Map();
       scoredVideos.slice(0, 15).forEach(v => { if (!songsDedupMap.has(v.videoId)) songsDedupMap.set(v.videoId, v); });
 
+      const responseSongs = Array.from(songsDedupMap.values());
+
+      if (userId) {
+        runNonBlocking(() => addRecentSongs(userId, responseSongs.map((song) => song.videoId)));
+      }
+
       return res.json({
-        songs: Array.from(songsDedupMap.values()),
+        songs: responseSongs,
         blend: { mood1: primaryMood, weight1: 100, mood2: null, weight2: 0 },
         meta: {
           source: result.source,
@@ -1019,8 +1063,9 @@ router.get("/songs", async (req, res) => {
       resolvedWeight2,
       12
     );
+    const filteredBlended = applyRecentSongFilter(blended, recentSongs);
     // ✅ FIXED: /songs blend mode also scored before queue storage
-    const scoredBlended = await toScoredQueue(blended);
+    const scoredBlended = await toScoredQueue(filteredBlended);
 
     if (sessionId) {
       const session = getOrCreateSession(sessionId);
@@ -1035,8 +1080,14 @@ router.get("/songs", async (req, res) => {
     const blendDedupMap = new Map();
     scoredBlended.forEach(v => { if (!blendDedupMap.has(v.videoId)) blendDedupMap.set(v.videoId, v); });
 
+    const responseSongs = Array.from(blendDedupMap.values());
+
+    if (userId) {
+      runNonBlocking(() => addRecentSongs(userId, responseSongs.map((song) => song.videoId)));
+    }
+
     return res.json({
-      songs: Array.from(blendDedupMap.values()),
+      songs: responseSongs,
       blend: {
         mood1: primaryMood,
         mood2: secondaryMood,
@@ -1449,17 +1500,13 @@ const fetchArtistSongs = async (artist, maxResultsPerFetch = 15) => {
   const name = artist.toLowerCase().trim(); // FIX 8: Normalization
   try {
     const responses = await Promise.all([
-      axios.get("https://www.googleapis.com/youtube/v3/search", {
-        params: { part: "snippet", q: `${name} songs`, type: "video", maxResults: maxResultsPerFetch, videoCategoryId: "10", key: process.env.YOUTUBE_API_KEY, relevanceLanguage: "hi", regionCode: "IN" },
-      }),
-      axios.get("https://www.googleapis.com/youtube/v3/search", {
-        params: { part: "snippet", q: `${name} official songs`, type: "video", maxResults: maxResultsPerFetch, videoCategoryId: "10", key: process.env.YOUTUBE_API_KEY, relevanceLanguage: "hi", regionCode: "IN" },
-      }),
+      fetchSearchPages(`${name} songs`, SEARCH_MAX_PAGES, maxResultsPerFetch),
+      fetchSearchPages(`${name} hits`, SEARCH_MAX_PAGES, maxResultsPerFetch),
     ]);
 
     const artistVideos = [];
-    responses.forEach((response) => {
-      response.data.items.forEach((item) => {
+    responses.forEach((items) => {
+      items.forEach((item) => {
         artistVideos.push({
           videoId: item.id.videoId,
           title: item.snippet.title,
@@ -1554,7 +1601,7 @@ const fillRemaining = (finalVideos, extraPool, targetCount = 20) => {
 
 router.post("/solo-songs", async (req, res) => {
   try {
-    const { selectedArtists } = req.body;
+    const { selectedArtists, userId } = req.body;
     if (!selectedArtists || !Array.isArray(selectedArtists) || selectedArtists.length === 0) {
       return res.status(400).json({ error: "Missing or invalid selectedArtists array" });
     }
@@ -1573,18 +1620,21 @@ router.post("/solo-songs", async (req, res) => {
     });
 
     if (allFetchedVideos.length === 0) {
-      return res.status(404).json({ error: "No results fetched from source." });
+      return res.json({ songs: [] });
     }
 
     // Filter by duration & deduplicate
     const validVideos = await filterValidVideos(allFetchedVideos);
 
     if (validVideos.length === 0) {
-      return res.status(404).json({ error: "No valid videos passed duration logic constraint." });
+      return res.json({ songs: [] });
     }
 
+    const recentSongs = await getRecentSongs(userId);
+    const varietyFilteredVideos = applyRecentSongFilter(validVideos, recentSongs);
+
     // Distribute quota fairly
-    const { finalVideos, extraPool } = distributeQuota(validVideos, limitedArtists, 20);
+    const { finalVideos, extraPool } = distributeQuota(varietyFilteredVideos, limitedArtists, 20);
 
     // Fill remaining slots bridging missing gaps organically 
     let completeMix = fillRemaining(finalVideos, extraPool, 20);
@@ -1594,7 +1644,7 @@ router.post("/solo-songs", async (req, res) => {
 
     // FIX 9: Final Safety Execution
     if (completeMix.length === 0) {
-      return res.status(404).json({ error: "Internal fallback failed to sequence final output." });
+      return res.json({ songs: [] });
     }
     
     // Final deduplication assertion 
@@ -1605,6 +1655,10 @@ router.post("/solo-songs", async (req, res) => {
       }
     });
     const resultToReturn = Array.from(finalMap.values());
+
+    if (userId) {
+      runNonBlocking(() => addRecentSongs(userId, resultToReturn.map((song) => song.videoId)));
+    }
 
     return res.json({ songs: resultToReturn });
   } catch (error) {

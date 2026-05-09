@@ -37,6 +37,15 @@ const getOrCreateSessionId = () => {
   return generated;
 };
 
+const getCurrentUserId = () => {
+  try {
+    const rawUser = localStorage.getItem("user");
+    return rawUser ? JSON.parse(rawUser)?.uid || "" : "";
+  } catch {
+    return "";
+  }
+};
+
 function App() {
   const navigate = useNavigate();
   const [selectedMood, setSelectedMood] = useState(null);
@@ -136,6 +145,7 @@ function App() {
       mood2: payload.mood2 || "",
       weight1: normalizedWeight1,
       weight2: normalizedWeight2,
+      userId: getCurrentUserId(),
       likedKeywords: liked.join(","),
       dislikedKeywords: disliked.join(","),
       sessionId, // ✅ Include sessionId for Auto-DJ queue management

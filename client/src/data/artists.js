@@ -66,4 +66,39 @@ export const ARTISTS_DATA = [
   { id: "ritviz", name: "Ritviz", image: "https://ui-avatars.com/api/?name=Ritviz&background=random&size=200", category: "Indie" },
   { id: "zaeden", name: "Zaeden", image: "https://ui-avatars.com/api/?name=Zaeden&background=random&size=200", category: "Indie" },
   { id: "ananyabirla", name: "Ananya Birla", image: "https://ui-avatars.com/api/?name=Ananya+Birla&background=random&size=200", category: "Indie" },
+
+  //50s and ghazals
+  { id: "mukesh", name: "Mukesh", image: "https://ui-avatars.com/api/?name=Mukesh&background=random&size=200", category: "60s Bollywood" },
+  { id: "geetadutt", name: "Geeta Dutt", image: "https://ui-avatars.com/api/?name=Geeta+Dutt&background=random&size=200", category: "60s Bollywood" },
+  { id: "talatmahmood", name: "Talat Mahmood", image: "https://ui-avatars.com/api/?name=Talat+Mahmood&background=random&size=200", category: "60s Bollywood" },
+  { id: "shamshadbegum", name: "Shamshad Begum", image: "https://ui-avatars.com/api/?name=Shamshad+Begum&background=random&size=200", category: "60s Bollywood" },
+  { id: "opnayyar", name: "O.P. Nayyar", image: "https://ui-avatars.com/api/?name=OP+Nayyar&background=random&size=200", category: "60s Bollywood" },
+
+  // --- 70s & 80s: Retro & Disco (Additions) ---
+  { id: "naushad", name: "Naushad Ali", image: "https://ui-avatars.com/api/?name=Naushad+Ali&background=random&size=200", category: "70s Bollywood" },
+  { id: "kalyanjianandji", name: "Kalyanji-Anandji", image: "https://ui-avatars.com/api/?name=Kalyanji+Anandji&background=random&size=200", category: "70s Bollywood" },
+  { id: "naziahassan", name: "Nazia Hassan", image: "https://ui-avatars.com/api/?name=Nazia+Hassan&background=random&size=200", category: "80s Pop" },
+  { id: "bhupindersingh", name: "Bhupinder Singh", image: "https://ui-avatars.com/api/?name=Bhupinder+Singh&background=random&size=200", category: "80s Bollywood" },
+
+  // --- 90s: The Melodic Reinvention (Additions) ---
+  { id: "alkayagnik", name: "Alka Yagnik", image: "https://ui-avatars.com/api/?name=Alka+Yagnik&background=random&size=200", category: "90s Bollywood" },
+  { id: "kavitakrishnamurthy", name: "Kavita Krishnamurthy", image: "https://ui-avatars.com/api/?name=Kavita+Krishnamurthy&background=random&size=200", category: "90s Bollywood" },
+  { id: "abhijeetbhattacharya", name: "Abhijeet Bhattacharya", image: "https://ui-avatars.com/api/?name=Abhijeet+B&background=random&size=200", category: "90s Bollywood" },
+  { id: "anuradhapaudwal", name: "Anuradha Paudwal", image: "https://ui-avatars.com/api/?name=Anuradha+Paudwal&background=random&size=200", category: "90s Bollywood" },
+  { id: "shaan", name: "Shaan", image: "https://ui-avatars.com/api/?name=Shaan&background=random&size=200", category: "90s Bollywood" },
+  { id: "sadhana_sargam", name: "Sadhana Sargam", image: "https://ui-avatars.com/api/?name=Sadhana+Sargam&background=random&size=200", category: "90s Bollywood" },
+  { id: "jatin_lalit", name: "Jatin-Lalit", image: "https://ui-avatars.com/api/?name=Jatin+Lalit&background=random&size=200", category: "90s Bollywood" },
+
+  // --- Ghazal & Sufi (Crucial missing genre) ---
+  { id: "jagjitsingh", name: "Jagjit Singh", image: "https://ui-avatars.com/api/?name=Jagjit+Singh&background=random&size=200", category: "Ghazal" },
+  { id: "pankajudhas", name: "Pankaj Udhas", image: "https://ui-avatars.com/api/?name=Pankaj+Udhas&background=random&size=200", category: "Ghazal" },
+  { id: "nusratfatehalikhan", name: "Nusrat Fateh Ali Khan", image: "https://ui-avatars.com/api/?name=Nusrat+Fateh+Ali+Khan&background=random&size=200", category: "Sufi" },
+  { id: "abidaparveen", name: "Abida Parveen", image: "https://ui-avatars.com/api/?name=Abida+Parveen&background=random&size=200", category: "Sufi" },
+
+  // --- Bengali Classics (Additions) ---
+  { id: "aratimukherjee", name: "Arati Mukherjee", image: "https://ui-avatars.com/api/?name=Arati+Mukherjee&background=random&size=200", category: "Bengali" },
+  { id: "debabratabiswas", name: "Debabrata Biswas", image: "https://ui-avatars.com/api/?name=Debabrata+Biswas&background=random&size=200", category: "Bengali" },
+  { id: "suchitramitra", name: "Suchitra Mitra", image: "https://ui-avatars.com/api/?name=Suchitra+Mitra&background=random&size=200", category: "Bengali" },
+  { id: "manabendra", name: "Manabendra Mukhopadhyay", image: "https://ui-avatars.com/api/?name=Manabendra+M&background=random&size=200", category: "Bengali" },
+  { id: "banasreesengupta", name: "Banasree Sengupta", image: "https://ui-avatars.com/api/?name=Banasree+Sengupta&background=random&size=200", category: "Bengali" }
 ];

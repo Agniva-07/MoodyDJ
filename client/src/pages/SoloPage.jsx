@@ -35,6 +35,15 @@ function SoloPage() {
   const navigate = useNavigate();
   const { selectedArtists, getArtistNames, artistsLoaded } = useArtists();
 
+  const getCurrentUserId = () => {
+    try {
+      const rawUser = localStorage.getItem("user");
+      return rawUser ? JSON.parse(rawUser)?.uid || "" : "";
+    } catch {
+      return "";
+    }
+  };
+
   // 🎧 FETCH SONGS
   useEffect(() => {
     if (!artistsLoaded) return;
@@ -50,6 +59,7 @@ function SoloPage() {
 
         const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
           selectedArtists: getArtistNames(),
+          userId: getCurrentUserId(),
         });
 
         if (data.songs && data.songs.length > 0) {
@@ -58,8 +68,8 @@ function SoloPage() {
           setError("No songs found.");
         }
       } catch (err) {
-        console.error(err);
-        setError("Failed to fetch songs.");
+        console.error("FULL ERROR:", err.response?.data || err.message);
+        setError(err.response?.data?.error || "Failed to fetch songs.");
       } finally {
         setLoading(false);
       }
