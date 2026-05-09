@@ -117,7 +117,7 @@ const getFallbackSongs = async (type, query, userId) => {
       { videoId: "h-g0x-vRiy8", title: "Main Dhoondne Ko Zamaane Mein", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/h-g0x-vRiy8/mqdefault.jpg" },
       { videoId: "kpdv3BvTz1U", title: "O Saathi (Baaghi 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/kpdv3BvTz1U/mqdefault.jpg" },
       { videoId: "vUCM_0evdQY", title: "Ae Dil Hai Mushkil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/vUCM_0evdQY/mqdefault.jpg" },
-      { videoId: "1wRXb8tHl6Q", title: "Baarish (Half Girlfriend)", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/1wRXb8tHl6Q/mqdefault.jpg" },
+      { videoId: "kYI4N14WJ8w", title: "Baarish (Half Girlfriend)", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/kYI4N14WJ8w/mqdefault.jpg" },
       { videoId: "wF_B_aagLfI", title: "Teri Mitti", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/wF_B_aagLfI/mqdefault.jpg" },
       { videoId: "SAcpESN_Fk4", title: "Dil Diyan Gallan", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/SAcpESN_Fk4/mqdefault.jpg" },
       { videoId: "5Eqb_-j3FDA", title: "Zara Sa", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/5Eqb_-j3FDA/mqdefault.jpg" }
@@ -142,19 +142,19 @@ const getFallbackSongs = async (type, query, userId) => {
     hype: [
       { videoId: "vBw2clyP0Kk", title: "Bala Bala Shaitan Ka Saala", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/vBw2clyP0Kk/mqdefault.jpg" },
       { videoId: "qFkNATtc3mc", title: "Ghungroo (War)", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/qFkNATtc3mc/mqdefault.jpg" },
-      { videoId: "sK7riqg2mrA", title: "Malang title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sK7riqg2mrA/mqdefault.jpg" },
+      { videoId: "sft5baUuzQs", title: "Malang title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sft5baUuzQs/mqdefault.jpg" },
       { videoId: "XQmcJkX0BZE", title: "Illegal Weapon", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/XQmcJkX0BZE/mqdefault.jpg" },
       { videoId: "Eex_A2B5IqE", title: "Tamma Tamma Again", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Eex_A2B5IqE/mqdefault.jpg" },
       { videoId: "k-n_wU60i7k", title: "Disco Deewane", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/k-n_wU60i7k/mqdefault.jpg" },
-      { videoId: "ZrqcFrqMAVQ", title: "Zingaat Hindi", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" },
-      { videoId: "1-xGerv5FOk", title: "Kar Gayi Chull", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
+      { videoId: "8367ET2jNwM", title: "Zingaat Hindi", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/8367ET2jNwM/mqdefault.jpg" },
+      { videoId: "jCEdTq3j-0U", title: "Kar Gayi Chull", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/jCEdTq3j-0U/mqdefault.jpg" },
       { videoId: "II2EO3Nw4m0", title: "Badtameez Dil", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/II2EO3Nw4m0/mqdefault.jpg" },
       { videoId: "0N_RO-jL-90", title: "Galti Se Mistake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/0N_RO-jL-90/mqdefault.jpg" },
       { videoId: "Wd2B8OAotU8", title: "Nashe Si Chadh Gayi", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/Wd2B8OAotU8/mqdefault.jpg" },
       { videoId: "mH_ofhY4A5Y", title: "Saturday Saturday Humpty Sharma", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/mH_ofhY4A5Y/mqdefault.jpg" },
-      { videoId: "1-xGerv5FOk", title: "London Thumakda", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
-      { videoId: "ZrqcFrqMAVQ", title: "Desi Beat", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" },
-      { videoId: "JmD8hJ3K1k4", title: "Lat Lag Gayee", channelTitle: "Tips Official", thumbnail: "https://i.ytimg.com/vi/JmD8hJ3K1k4/mqdefault.jpg" }
+      { videoId: "bkx9kCdaaMg", title: "London Thumakda", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/bkx9kCdaaMg/mqdefault.jpg" },
+      { videoId: "sV1G8fCInE8", title: "Desi Beat", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sV1G8fCInE8/mqdefault.jpg" },
+      { videoId: "kYI44-5r96w", title: "Lat Lag Gayee", channelTitle: "Tips Official", thumbnail: "https://i.ytimg.com/vi/kYI44-5r96w/mqdefault.jpg" }
     ]
   };
   SEED_SONGS.default = SEED_SONGS.chill;
@@ -197,7 +197,7 @@ const playedHistory = new Map();
 // Session metadata
 const sessionHistory = new Map();
 
-const CACHE_TTL = 12 * 60 * 1000; // 12 minutes
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const SCORE_CACHE_TTL = 60 * 60 * 1000; // ✅ FIXED: score cache TTL 60 mins
 const SESSION_TTL = 30 * 60 * 1000; // ✅ FIXED: session TTL 30 mins
 const QUEUE_MIN_SIZE = 5;
@@ -1690,8 +1690,7 @@ const fetchArtistSongs = async (artist, maxResultsPerFetch = 15) => {
   const name = artist.toLowerCase().trim(); // FIX 8: Normalization
   try {
     const responses = await Promise.all([
-      fetchSearchPages(`${name} songs`, SEARCH_MAX_PAGES, maxResultsPerFetch),
-      fetchSearchPages(`${name} hits`, SEARCH_MAX_PAGES, maxResultsPerFetch),
+      fetchSearchPages(`${name} top songs official`, SEARCH_MAX_PAGES, maxResultsPerFetch),
     ]);
 
     const artistVideos = [];
