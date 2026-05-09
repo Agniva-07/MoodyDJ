@@ -8,6 +8,7 @@ import SignupPage from "./pages/SignupPage";
 import ProfilePage from "./pages/ProfilePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ArtistSelection from "./components/ArtistSelection";
+import DailyArtistPrompt from "./components/DailyArtistPrompt";
 import ModeSelection from "./pages/ModeSelection";
 import SoloPage from "./pages/SoloPage";
 import { ARTISTS_DATA } from "./data/artists";
@@ -376,6 +377,7 @@ function App() {
 
   return (
     <>
+      <DailyArtistPrompt />
       <Routes>
         <Route path="/" element={<Navigate to="/mode-select" replace />} />
         <Route path="/login" element={<LoginPage />} />

@@ -5,11 +5,183 @@ const { getRecentSongs, addRecentSongs } = require("../recentSongs");
 const router = express.Router();
 
 // ============================================================
+// PHASE 2: PART A - Quota Tracker & Fallback System
+// ============================================================
+function getNextMidnightPT() {
+  const now = new Date();
+  const ptString = now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+  const ptDate = new Date(ptString);
+  ptDate.setHours(24, 0, 0, 0);
+  const diff = now.getTime() - new Date(ptString).getTime();
+  return ptDate.getTime() + diff;
+}
+
+const quotaTracker = { 
+  unitsUsed: 0, 
+  resetTime: getNextMidnightPT() 
+};
+
+router.quotaTracker = quotaTracker;
+router.getNextMidnightPT = getNextMidnightPT;
+
+function trackQuotaUsage(units) {
+  quotaTracker.unitsUsed += units;
+  console.log(`📊 Quota Usage: ${quotaTracker.unitsUsed}/10000 units`);
+}
+
+function isQuotaSafe(units) {
+  return quotaTracker.unitsUsed + units <= 8500;
+}
+
+// PHASE 2: PART C - Fallback Chain
+const getFallbackSongs = async (type, query, userId) => {
+  // Level 1 — artistCache check
+  if (query) {
+    const qLower = query.toLowerCase();
+    for (const [artistName, cacheData] of artistCache.entries()) {
+      if (qLower.includes(artistName) || artistName.includes(qLower)) {
+        if (Date.now() - cacheData.timestamp < ARTIST_CACHE_TTL) {
+          const videos = cacheData.videos;
+          const offset = Math.floor(Math.random() * Math.max(1, videos.length));
+          let selected = [];
+          for (let i = 0; i < 15 && i < videos.length; i++) {
+            selected.push(videos[(offset + i) % videos.length]);
+          }
+          const shuffled = [];
+          for (let i = selected.length - 1; i >= 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [selected[i], selected[j]] = [selected[j], selected[i]];
+            shuffled.push(selected[i]);
+          }
+          return { songs: shuffled, source: "cache", quotaSafeMode: true };
+        }
+      }
+    }
+  }
+
+  // Level 2 — Firestore history
+  if (userId) {
+    try {
+      const db = require("../firebaseAdmin").initFirebaseAdmin();
+      if (db) {
+        const historySnapshot = await db.collection("recentSongs").doc(userId).get();
+        if (historySnapshot.exists) {
+          let historyVideos = historySnapshot.data().history || [];
+          if (query) {
+            const qLower = query.toLowerCase();
+            historyVideos = historyVideos.filter(v => 
+              v.title?.toLowerCase().includes(qLower) || 
+              v.channelTitle?.toLowerCase().includes(qLower)
+            );
+          }
+          if (historyVideos.length > 0) {
+            for (let i = historyVideos.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [historyVideos[i], historyVideos[j]] = [historyVideos[j], historyVideos[i]];
+            }
+            return { songs: historyVideos.slice(0, 15), source: "history", quotaSafeMode: true };
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Level 2 Fallback error:", e.message);
+    }
+  }
+
+  // Level 3 — Hardcoded seeds
+  const SEED_SONGS = {
+    chill: [
+      { videoId: "Umqb9KENgmk", title: "Tum Hi Ho (Aashiqui 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Umqb9KENgmk/mqdefault.jpg" },
+      { videoId: "zXtsGAJEiEA", title: "Raabta (Agent Sai Srinivasa)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/zXtsGAJEiEA/mqdefault.jpg" },
+      { videoId: "YFv_k1P4p8U", title: "Lo Fi Hindi Mix popular songs", channelTitle: "Lofi Vibes", thumbnail: "https://i.ytimg.com/vi/YFv_k1P4p8U/mqdefault.jpg" },
+      { videoId: "mH_ofhY4A5Y", title: "Slow Motion (Bharat)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/mH_ofhY4A5Y/mqdefault.jpg" },
+      { videoId: "hoNb6HuNmU0", title: "Khairiyat (Chhichhore)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/hoNb6HuNmU0/mqdefault.jpg" },
+      { videoId: "dZ0fwJ1OoEA", title: "Bekhayali (Kabir Singh)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/dZ0fwJ1OoEA/mqdefault.jpg" },
+      { videoId: "sK7riqg2mrA", title: "Agar Tum Saath Ho", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sK7riqg2mrA/mqdefault.jpg" },
+      { videoId: "bzSTpdcs-EI", title: "Channa Mereya", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/bzSTpdcs-EI/mqdefault.jpg" },
+      { videoId: "1-xGerv5FOk", title: "Phir Le Aya Dil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
+      { videoId: "fdubeMFwuZI", title: "Ilahi (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/fdubeMFwuZI/mqdefault.jpg" },
+      { videoId: "jHNNMj5bNQw", title: "Kabira (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/jHNNMj5bNQw/mqdefault.jpg" },
+      { videoId: "BwqQawK4Luw", title: "Enna Sona", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/BwqQawK4Luw/mqdefault.jpg" },
+      { videoId: "2bW1xR1wMhI", title: "Pehla Nasha", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/2bW1xR1wMhI/mqdefault.jpg" },
+      { videoId: "1p7T1j6d1t8", title: "Tujhe Bhula Diya", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/1p7T1j6d1t8/mqdefault.jpg" },
+      { videoId: "A5pSnIwbpaM", title: "Soch Na Sake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/A5pSnIwbpaM/mqdefault.jpg" }
+    ],
+    sad: [
+      { videoId: "1wRXb8tHl6Q", title: "Judaai (Badlapur)", channelTitle: "Eros Now", thumbnail: "https://i.ytimg.com/vi/1wRXb8tHl6Q/mqdefault.jpg" },
+      { videoId: "JmD8hJ3K1k4", title: "Woh Lamhe", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/JmD8hJ3K1k4/mqdefault.jpg" },
+      { videoId: "mBpsI1c0g2U", title: "Dil Dhadakne Do title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/mBpsI1c0g2U/mqdefault.jpg" },
+      { videoId: "Ww1Be-m5gQY", title: "Hamari Adhuri Kahani", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/Ww1Be-m5gQY/mqdefault.jpg" },
+      { videoId: "qNawhQ-Kz8w", title: "Tere Bina (Guru)", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/qNawhQ-Kz8w/mqdefault.jpg" },
+      { videoId: "VAlj_4tB_8g", title: "Ik Vaari Aa", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/VAlj_4tB_8g/mqdefault.jpg" },
+      { videoId: "h-g0x-vRiy8", title: "Main Dhoondne Ko Zamaane Mein", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/h-g0x-vRiy8/mqdefault.jpg" },
+      { videoId: "kpdv3BvTz1U", title: "O Saathi (Baaghi 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/kpdv3BvTz1U/mqdefault.jpg" },
+      { videoId: "vUCM_0evdQY", title: "Ae Dil Hai Mushkil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/vUCM_0evdQY/mqdefault.jpg" },
+      { videoId: "1wRXb8tHl6Q", title: "Baarish (Half Girlfriend)", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/1wRXb8tHl6Q/mqdefault.jpg" },
+      { videoId: "wF_B_aagLfI", title: "Teri Mitti", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/wF_B_aagLfI/mqdefault.jpg" },
+      { videoId: "SAcpESN_Fk4", title: "Dil Diyan Gallan", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/SAcpESN_Fk4/mqdefault.jpg" },
+      { videoId: "5Eqb_-j3FDA", title: "Zara Sa", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/5Eqb_-j3FDA/mqdefault.jpg" }
+    ],
+    focus: [
+      { videoId: "UDVtMYqUAyw", title: "Interstellar Theme Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/UDVtMYqUAyw/mqdefault.jpg" },
+      { videoId: "RxabLA7UQ9k", title: "Time Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/RxabLA7UQ9k/mqdefault.jpg" },
+      { videoId: "1VRZq3J0uz4", title: "Cornfield Chase", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/1VRZq3J0uz4/mqdefault.jpg" },
+      { videoId: "hN_q-_nGv4U", title: "Experience Ludovico Einaudi", channelTitle: "Ludovico Einaudi", thumbnail: "https://i.ytimg.com/vi/hN_q-_nGv4U/mqdefault.jpg" },
+      { videoId: "2nB1jZ2q9A4", title: "Uma Thurman Fall Out Boy", channelTitle: "Fall Out Boy", thumbnail: "https://i.ytimg.com/vi/2nB1jZ2q9A4/mqdefault.jpg" },
+      { videoId: "7wtfhZwyrcc", title: "Believer Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/7wtfhZwyrcc/mqdefault.jpg" },
+      { videoId: "ktvTqknDobU", title: "Radioactive Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/ktvTqknDobU/mqdefault.jpg" },
+      { videoId: "mk48xRzuNvA", title: "Hall of Fame The Script", channelTitle: "The Script", thumbnail: "https://i.ytimg.com/vi/mk48xRzuNvA/mqdefault.jpg" },
+      { videoId: "hT_nvWreIhg", title: "Counting Stars OneRepublic", channelTitle: "OneRepublic", thumbnail: "https://i.ytimg.com/vi/hT_nvWreIhg/mqdefault.jpg" },
+      { videoId: "0I647GU3Jsc", title: "Natural Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/0I647GU3Jsc/mqdefault.jpg" },
+      { videoId: "fKopy74weus", title: "Thunder Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fKopy74weus/mqdefault.jpg" },
+      { videoId: "D9G1VOjN_84", title: "Enemy Imagine Dragons Arcane", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/D9G1VOjN_84/mqdefault.jpg" },
+      { videoId: "fmI_Ndrxy14", title: "Warriors Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fmI_Ndrxy14/mqdefault.jpg" },
+      { videoId: "fB8TyLTD7EE", title: "Rise League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/fB8TyLTD7EE/mqdefault.jpg" },
+      { videoId: "ZrqcFrqMAVQ", title: "Ignite League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" }
+    ],
+    hype: [
+      { videoId: "vBw2clyP0Kk", title: "Bala Bala Shaitan Ka Saala", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/vBw2clyP0Kk/mqdefault.jpg" },
+      { videoId: "qFkNATtc3mc", title: "Ghungroo (War)", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/qFkNATtc3mc/mqdefault.jpg" },
+      { videoId: "sK7riqg2mrA", title: "Malang title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sK7riqg2mrA/mqdefault.jpg" },
+      { videoId: "XQmcJkX0BZE", title: "Illegal Weapon", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/XQmcJkX0BZE/mqdefault.jpg" },
+      { videoId: "Eex_A2B5IqE", title: "Tamma Tamma Again", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Eex_A2B5IqE/mqdefault.jpg" },
+      { videoId: "k-n_wU60i7k", title: "Disco Deewane", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/k-n_wU60i7k/mqdefault.jpg" },
+      { videoId: "ZrqcFrqMAVQ", title: "Zingaat Hindi", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" },
+      { videoId: "1-xGerv5FOk", title: "Kar Gayi Chull", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
+      { videoId: "II2EO3Nw4m0", title: "Badtameez Dil", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/II2EO3Nw4m0/mqdefault.jpg" },
+      { videoId: "0N_RO-jL-90", title: "Galti Se Mistake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/0N_RO-jL-90/mqdefault.jpg" },
+      { videoId: "Wd2B8OAotU8", title: "Nashe Si Chadh Gayi", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/Wd2B8OAotU8/mqdefault.jpg" },
+      { videoId: "mH_ofhY4A5Y", title: "Saturday Saturday Humpty Sharma", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/mH_ofhY4A5Y/mqdefault.jpg" },
+      { videoId: "1-xGerv5FOk", title: "London Thumakda", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
+      { videoId: "ZrqcFrqMAVQ", title: "Desi Beat", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" },
+      { videoId: "JmD8hJ3K1k4", title: "Lat Lag Gayee", channelTitle: "Tips Official", thumbnail: "https://i.ytimg.com/vi/JmD8hJ3K1k4/mqdefault.jpg" }
+    ]
+  };
+  SEED_SONGS.default = SEED_SONGS.chill;
+
+  let moodKey = "default";
+  if (query) {
+    const qLower = query.toLowerCase();
+    moodKey = Object.keys(SEED_SONGS).find(key => qLower.includes(key)) || "default";
+  }
+
+  return {
+    songs: SEED_SONGS[moodKey],
+    source: "seed",
+    quotaSafeMode: true
+  };
+};
+
+// ============================================================
 // QUOTA OPTIMIZATION: Cache & Session Management
 // ============================================================
 
 // Search result cache (key = moodKeyword)
 const searchCache = new Map();
+
+// Artist search cache for Solo Mode
+const artistCache = new Map();
+const ARTIST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 // Video scoring cache (cached scores + metrics)
 const scoredVideosCache = new Map();
@@ -109,11 +281,17 @@ const applyRecentSongFilter = (videos, recentSongs = [], minFreshCount = RECENT_
   return [...fresh, ...seen];
 };
 
-const fetchSearchPages = async (query, maxPages = SEARCH_MAX_PAGES, maxResults = SEARCH_RESULTS_PER_PAGE) => {
+const fetchSearchPages = async (query, maxPages = SEARCH_MAX_PAGES, maxResults = SEARCH_RESULTS_PER_PAGE, userId = null, type = "mood") => {
   const items = [];
   let nextPageToken;
 
   for (let page = 0; page < maxPages; page += 1) {
+    if (!isQuotaSafe(100)) {
+      console.log("🔴 QUOTA SAFE MODE ACTIVE — skipping YouTube search");
+      const fallback = await getFallbackSongs(type, query, userId);
+      throw { name: "QuotaSafeFallback", fallback };
+    }
+
     const response = await axios.get("https://www.googleapis.com/youtube/v3/search", {
       params: {
         part: "snippet",
@@ -127,6 +305,8 @@ const fetchSearchPages = async (query, maxPages = SEARCH_MAX_PAGES, maxResults =
         regionCode: "IN",
       },
     });
+
+    trackQuotaUsage(100);
 
     items.push(...(response.data.items || []));
     nextPageToken = response.data.nextPageToken;
@@ -1101,6 +1281,16 @@ router.get("/songs", async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.name === "QuotaSafeFallback") {
+      return res.json({
+        songs: error.fallback.songs,
+        meta: {
+          source: error.fallback.source,
+          quotaSafeMode: true,
+          quotaSafe: true
+        }
+      });
+    }
     console.error("❌ Error in /songs:", error.message);
     return res.status(500).json({ error: "Something went wrong" });
   }
@@ -1599,6 +1789,73 @@ const fillRemaining = (finalVideos, extraPool, targetCount = 20) => {
 
 // --- Main Route ---
 
+// ============================================================
+// PART A: Prewarm Artists Cache
+// ============================================================
+router.post("/prewarm-artists", async (req, res) => {
+  try {
+    const { artists } = req.body;
+    if (!artists || !Array.isArray(artists)) {
+      return res.status(400).json({ error: "Missing artists array" });
+    }
+    
+    const limitedArtists = artists.slice(0, 10);
+    const now = Date.now();
+    
+    const promises = limitedArtists.map(async (artist) => {
+      const name = artist.toLowerCase().trim();
+      if (artistCache.has(name) && now - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
+        return; // Already cached
+      }
+      
+      try {
+        const [popular, hits] = await Promise.all([
+          fetchSearchPages(`${name} popular songs official`, 1, 50),
+          fetchSearchPages(`${name} best hits playlist`, 1, 25)
+        ]);
+        
+        const artistVideos = [];
+        const seen = new Set();
+        
+        const processItem = (item) => {
+          if (!seen.has(item.id.videoId)) {
+            seen.add(item.id.videoId);
+            artistVideos.push({
+              videoId: item.id.videoId,
+              title: item.snippet.title,
+              channelTitle: item.snippet.channelTitle,
+              thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+              sourceArtist: name
+            });
+          }
+        };
+        
+        popular.forEach(processItem);
+        hits.forEach(processItem);
+        
+        artistCache.set(name, {
+          videos: artistVideos,
+          timestamp: now,
+          offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
+        });
+        console.log(`✅ Prewarmed artist: ${name} (${artistVideos.length} songs)`);
+      } catch (err) {
+        if (err.name === "QuotaSafeFallback") {
+          console.log(`🔴 Prewarm hit quota limit for ${name}, aborting.`);
+          return;
+        }
+        console.error(`❌ Prewarm failed for ${name}:`, err.message);
+      }
+    });
+    
+    await Promise.all(promises);
+    return res.json({ ok: true, message: "Artists prewarmed successfully" });
+  } catch (error) {
+    console.error("❌ Error in /prewarm-artists:", error.message);
+    return res.status(500).json({ error: "Prewarm failed" });
+  }
+});
+
 router.post("/solo-songs", async (req, res) => {
   try {
     const { selectedArtists, userId } = req.body;
@@ -1606,15 +1863,46 @@ router.post("/solo-songs", async (req, res) => {
       return res.status(400).json({ error: "Missing or invalid selectedArtists array" });
     }
 
-    // FIX 4: Limit max artists per request (e.g. 6-8)
-    const limitedArtists = selectedArtists.slice(0, 8);
+    const limitedArtists = selectedArtists.slice(0, 10);
+    const now = Date.now();
     
-    // Fetch videos in parallel
-    const artistPromises = limitedArtists.map(artist => fetchArtistSongs(artist));
+    let allFetchedVideos = [];
+    
+    const artistPromises = limitedArtists.map(async (artist) => {
+      const name = artist.toLowerCase().trim();
+      if (artistCache.has(name) && now - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
+        const cached = artistCache.get(name);
+        const videos = cached.videos;
+        const offset = cached.offset || 0;
+        
+        let selected = [];
+        if (videos.length > 0) {
+          for (let i = 0; i < 15; i++) {
+            selected.push(videos[(offset + i) % videos.length]);
+          }
+          cached.offset = (offset + 15) % videos.length;
+          return shuffleResults(selected);
+        }
+      }
+      
+      // Fallback if not cached
+      try {
+        const items = await fetchSearchPages(`${name} top songs`, 1, 15);
+        return items.map(item => ({
+          videoId: item.id.videoId,
+          title: item.snippet.title,
+          channelTitle: item.snippet.channelTitle,
+          thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+          sourceArtist: name
+        }));
+      } catch (err) {
+        console.error(`❌ Fallback search failed for artist "${name}":`, err.message);
+        return [];
+      }
+    });
+
     const resultsArray = await Promise.all(artistPromises);
     
-    // Flatten array
-    let allFetchedVideos = [];
     resultsArray.forEach(arr => {
       allFetchedVideos = allFetchedVideos.concat(arr);
     });
@@ -1623,26 +1911,14 @@ router.post("/solo-songs", async (req, res) => {
       return res.json({ songs: [] });
     }
 
-    // Filter by duration & deduplicate
-    const validVideos = await filterValidVideos(allFetchedVideos);
-
-    if (validVideos.length === 0) {
-      return res.json({ songs: [] });
-    }
-
+    // Filter by recent songs
     const recentSongs = await getRecentSongs(userId);
-    const varietyFilteredVideos = applyRecentSongFilter(validVideos, recentSongs);
+    const varietyFilteredVideos = applyRecentSongFilter(allFetchedVideos, recentSongs);
 
-    // Distribute quota fairly
-    const { finalVideos, extraPool } = distributeQuota(varietyFilteredVideos, limitedArtists, 20);
+    // Take up to 50 songs assembled from multiple artists
+    let completeMix = shuffleResults(varietyFilteredVideos);
+    completeMix = completeMix.slice(0, 50);
 
-    // Fill remaining slots bridging missing gaps organically 
-    let completeMix = fillRemaining(finalVideos, extraPool, 20);
-
-    // FIX 6: Fisher-Yates Safe Shuffle
-    completeMix = shuffleResults(completeMix);
-
-    // FIX 9: Final Safety Execution
     if (completeMix.length === 0) {
       return res.json({ songs: [] });
     }
@@ -1662,6 +1938,16 @@ router.post("/solo-songs", async (req, res) => {
 
     return res.json({ songs: resultToReturn });
   } catch (error) {
+    if (error.name === "QuotaSafeFallback") {
+      return res.json({
+        songs: error.fallback.songs,
+        meta: {
+          source: error.fallback.source,
+          quotaSafeMode: true,
+          quotaSafe: true
+        }
+      });
+    }
     console.error("❌ /solo-songs failed:", error);
     res.status(500).json({ error: "Failed to generate solo mix logic execution" });
   }

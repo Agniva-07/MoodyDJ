@@ -1,0 +1,137 @@
+.daily-prompt-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  backdrop-filter: blur(8px);
+}
+
+.daily-prompt-modal {
+  background: #1e1e1e;
+  border-radius: 16px;
+  padding: 30px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  border: 1px solid #333;
+}
+
+.daily-prompt-modal h2 {
+  color: #fff;
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1.8rem;
+}
+
+.daily-prompt-modal p {
+  color: #aaa;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+
+.daily-prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+.daily-prompt-grid::-webkit-scrollbar {
+  width: 8px;
+}
+.daily-prompt-grid::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.daily-prompt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+  opacity: 0.7;
+}
+
+.daily-prompt-card:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.daily-prompt-card.selected {
+  opacity: 1;
+}
+
+.daily-prompt-card img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid transparent;
+  transition: border-color 0.2s;
+  margin-bottom: 8px;
+}
+
+.daily-prompt-card.selected img {
+  border-color: #1db954;
+}
+
+.daily-prompt-card span {
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.daily-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #333;
+}
+
+.daily-prompt-actions button {
+  padding: 10px 24px;
+  border-radius: 24px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+  font-size: 1rem;
+}
+
+.skip-btn {
+  background: transparent;
+  color: #aaa;
+}
+
+.skip-btn:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
+
+.confirm-btn {
+  background: #1db954;
+  color: #fff;
+}
+
+.confirm-btn:hover:not(:disabled) {
+  background: #1ed760;
+}
+
+.confirm-btn:disabled, .skip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -13,6 +13,34 @@ app.get("/", (req, res) => {
   res.send("Server running 🚀");
 });
 
+// ============================================================
+// PHASE 2: PART D - Quota Status Endpoint
+// ============================================================
+app.get("/api/quota-status", (req, res) => {
+  const { quotaTracker, getNextMidnightPT } = songsRoute;
+  if (!quotaTracker) {
+    return res.status(500).json({ error: "Quota tracker not initialized" });
+  }
+  res.json({
+    unitsUsed: quotaTracker.unitsUsed,
+    remaining: 10000 - quotaTracker.unitsUsed,
+    isQuotaSafe: quotaTracker.unitsUsed + 100 <= 8500,
+    resetTime: quotaTracker.resetTime,
+  });
+});
+
+// ============================================================
+// PHASE 2: PART E - Midnight Reset Interval
+// ============================================================
+setInterval(() => {
+  const { quotaTracker, getNextMidnightPT } = songsRoute;
+  if (quotaTracker && Date.now() >= quotaTracker.resetTime) {
+    console.log("🕛 Midnight PT reached! Resetting YouTube quota.");
+    quotaTracker.unitsUsed = 0;
+    quotaTracker.resetTime = getNextMidnightPT();
+  }
+}, 60 * 1000);
+
 const { initFirebaseAdmin } = require("./firebaseAdmin");
 
 app.get("/test-firebase", async (req, res) => {
