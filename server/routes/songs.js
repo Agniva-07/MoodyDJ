@@ -181,7 +181,7 @@ const searchCache = new Map();
 
 // Artist search cache for Solo Mode
 const artistCache = new Map();
-const ARTIST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const ARTIST_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 // Video scoring cache (cached scores + metrics)
 const scoredVideosCache = new Map();
@@ -528,33 +528,7 @@ const performMultiQuerySearch = async (mood, query, isPersonalized = false, arti
     const quotaPerArtist = Math.max(1, Math.floor(20 / artists.length));
 
     const artistPromises = artists.map(async (artist) => {
-      try {
-        const responses = await Promise.all([
-          fetchSearchPages(`${artist} songs`, SEARCH_MAX_PAGES, maxResultsPerFetch),
-          fetchSearchPages(`${artist} hits`, SEARCH_MAX_PAGES, maxResultsPerFetch),
-        ]);
-
-        const artistVideos = [];
-        responses.forEach((items) => {
-          items.forEach((item) => {
-            if (!videoIdSet.has(item.id.videoId)) {
-              videoIdSet.add(item.id.videoId);
-              artistVideos.push({
-                videoId: item.id.videoId,
-                title: item.snippet.title,
-                channelTitle: item.snippet.channelTitle,
-                thumbnail: item.snippet.thumbnails.medium.url,
-              });
-            }
-          });
-        });
-
-        // Return all found videos for this artist to be merged using the smart quota later
-        return artistVideos;
-      } catch (err) {
-        console.error(`❌ Search failed for artist "${artist}":`, err.message);
-        return [];
-      }
+      return await fetchArtistSongs(artist, maxResultsPerFetch);
     });
 
     const resultsArray = await Promise.all(artistPromises);
@@ -1687,10 +1661,20 @@ const shuffleResults = (array) => {
 };
 
 const fetchArtistSongs = async (artist, maxResultsPerFetch = 15) => {
-  const name = artist.toLowerCase().trim(); // FIX 8: Normalization
+  const name = artist.toLowerCase().trim();
+  const now = Date.now();
+  
+  if (artistCache.has(name) && Date.now() - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
+    const cached = artistCache.get(name);
+    if (cached.videos && cached.videos.length > 0) {
+      console.log(`✅ Personalized Mode cache hit for: ${name}`);
+      return shuffleResults([...cached.videos]).slice(0, maxResultsPerFetch);
+    }
+  }
+
   try {
     const responses = await Promise.all([
-      fetchSearchPages(`${name} top songs official`, SEARCH_MAX_PAGES, maxResultsPerFetch),
+      fetchSearchPages(`${name} top songs official`, 1, maxResultsPerFetch),
     ]);
 
     const artistVideos = [];
@@ -1804,6 +1788,7 @@ router.post("/prewarm-artists", async (req, res) => {
     const promises = limitedArtists.map(async (artist) => {
       const name = artist.toLowerCase().trim();
       if (artistCache.has(name) && now - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
+        console.log(`📦 PREWARM SKIP: ${name} already cached, age: ${Math.round((Date.now() - artistCache.get(name).timestamp) / 60000)} mins`);
         return; // Already cached
       }
       
@@ -1880,24 +1865,12 @@ router.post("/solo-songs", async (req, res) => {
             selected.push(videos[(offset + i) % videos.length]);
           }
           cached.offset = (offset + 15) % videos.length;
+          console.log(`📦 SOLO CACHE HIT: ${name}, offset: ${cached.offset}`);
           return shuffleResults(selected);
         }
       }
-      
-      // Fallback if not cached
-      try {
-        const items = await fetchSearchPages(`${name} top songs`, 1, 15);
-        return items.map(item => ({
-          videoId: item.id.videoId,
-          title: item.snippet.title,
-          channelTitle: item.snippet.channelTitle,
-          thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-          sourceArtist: name
-        }));
-      } catch (err) {
-        console.error(`❌ Fallback search failed for artist "${name}":`, err.message);
-        return [];
-      }
+      console.log(`⚠️ Artist "${name}" not prewarmed. Skipping to avoid quota use.`);
+      return [];
     });
 
     const resultsArray = await Promise.all(artistPromises);

@@ -9,12 +9,21 @@ const DailyArtistPrompt = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check local storage for today's date
-    const today = new Date().toLocaleDateString();
-    const lastPromptDate = localStorage.getItem('lastDailyArtistPrompt');
-    
-    if (lastPromptDate !== today) {
+    // Check if user is logged in
+    const user = localStorage.getItem('user');
+    if (!user) {
+      setShow(false);
+      return;
+    }
+
+    const PREWARM_TTL = 12 * 60 * 60 * 1000; // 12 hours in ms
+    const lastPrewarm = localStorage.getItem('lastDailyArtistPrompt');
+    const shouldShow = !lastPrewarm || (Date.now() - parseInt(lastPrewarm)) > PREWARM_TTL;
+
+    if (shouldShow) {
       setShow(true);
+    } else {
+      setShow(false);
     }
   }, []);
 
@@ -40,6 +49,8 @@ const DailyArtistPrompt = () => {
       await axios.post('http://localhost:5000/api/prewarm-artists', {
         artists: selected
       });
+      // Store selected artists for this window
+      localStorage.setItem('prewarmedArtists', JSON.stringify(selected));
       closePrompt();
     } catch (error) {
       console.error('Failed to prewarm artists:', error);
@@ -50,8 +61,7 @@ const DailyArtistPrompt = () => {
   };
 
   const closePrompt = () => {
-    const today = new Date().toLocaleDateString();
-    localStorage.setItem('lastDailyArtistPrompt', today);
+    localStorage.setItem('lastDailyArtistPrompt', Date.now().toString());
     setShow(false);
   };
 

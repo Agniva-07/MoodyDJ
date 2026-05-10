@@ -57,8 +57,11 @@ function SoloPage() {
       try {
         setLoading(true);
 
+        const prewarmed = JSON.parse(localStorage.getItem('prewarmedArtists') || '[]');
+        const artistNames = prewarmed.length > 0 ? prewarmed : getArtistNames();
+
         const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
-          selectedArtists: getArtistNames(),
+          selectedArtists: artistNames,
           userId: getCurrentUserId(),
         });
 

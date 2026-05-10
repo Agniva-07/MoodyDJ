@@ -70,23 +70,20 @@ Your app has 4 different listening modes:
 ---
 
 ### Mode 4: 🎤 **Solo Mode** (Pure Artists, No Mood)
-**What it does:** Play music ONLY from selected artists (mood-agnostic)
+**What it does:** Play music ONLY from your pre-selected artists (mood-agnostic)
 
 **How it works:**
-1. User selects 1+ artists (e.g., 5 artists)
-2. For EACH artist, backend searches YouTube 2 times:
-   - Search 1: `artist_name songs`
-   - Search 2: `artist_name hits`
-3. Results are merged, ranked, and scored
-4. Queue fills with songs from selected artists only
-5. New songs auto-fetch from artist pool as queue depletes
+1. User logs in for the day (12-hour session).
+2. App prompts user to select up to 10 artists they want to hear today.
+3. App performs a one-time "pre-warm" (API fetch) for these artists.
+4. Throughout the day, Solo Mode pulls *strictly* from this pre-warmed cache.
+5. If an artist wasn't pre-warmed, they are safely skipped to protect quota.
 
 **Example:**
-- Artists: Taylor Swift, The Weeknd, Billie Eilish, Arctic Monkeys, SZA
-- Result: Play any song from these 5 artists
+- Morning pre-warm: Taylor Swift, The Weeknd, Billie Eilish
+- Afternoon Solo Mode: Plays only these 3 artists directly from memory.
 
-**API Usage:** ~1000 units per session! 🔴 (200 units per artist × 5 artists)
-- *This is why quota exhausts quickly with Solo mode*
+**API Usage:** 0 units during playback! 🟢 (Pre-warm costs a fixed max 1000 units once every 12 hours)
 
 ---
 
@@ -104,6 +101,15 @@ Your app has 4 different listening modes:
 ├─────────────────────────────────────────────────────────┤
 │ User selects artists → Stored in Firestore              │
 │ (used for Personalized & Solo modes)                    │
+└─────────────────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────────────────┐
+│ STEP 2.5: 🛑 12-Hour Prewarm Gate                        │
+├─────────────────────────────────────────────────────────┤
+│ • Prompt shows after login (if 12h expired)             │
+│ • User selects up to 10 artists                         │
+│ • App pre-loads songs into server cache                 │
+│ • Costs quota ONCE per 12 hours (Playback = 0 units)    │
 └─────────────────────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -205,16 +211,16 @@ Your app has 4 different listening modes:
 │  ├─────────────────────────────────────────────────────────┤   │
 │  │                                                         │   │
 │  │  Routes (songs.js):                                   │   │
-│  │  POST  /songs          → Single Mood songs            │   │
+│  │  POST  /songs          → Mood/Personalized search     │   │
 │  │  POST  /blend-songs    → Blended Mood songs           │   │
-│  │  POST  /solo-songs     → Solo artist songs            │   │
-│  │  GET   /next-song      → Auto-fetch next song         │   │
-│  │  GET   /like           → Record user like             │   │
-│  │  POST  /prefetch-next  → Pre-load upcoming songs      │   │
+│  │  POST  /solo-songs     → STRICT cache-only artist load│   │
+│  │  POST  /prewarm-artists→ 12-hour TTL cache loader     │   │
+│  │  GET   /quota-status   → Real-time API tracking       │   │
 │  │                                                         │   │
 │  │  Core Logic:                                           │   │
 │  │  • YouTube API integration                            │   │
-│  │  • Caching system (12 min TTL - TOO SHORT!)          │   │
+│  │  • 12-Hour Caching system (Zero-cost fallback)        │   │
+│  │  • Quota Tracker (Hard stop at 8500 units)            │   │
 │  │  • Scoring algorithm                                  │   │
 │  │  • Queue management (50 songs)                        │   │
 │  │  • Prefetch system (fetch at 75%)                     │   │
@@ -405,34 +411,29 @@ Total API Cost: 300 units (same as single mood, just filtered)
 Benefit: Personal touch + artist loyalty
 ```
 
-### Mode 4: Solo - Step-by-Step 🔴
+### Mode 4: Solo - Step-by-Step 🟢 (Quota Protected)
 
-```
-User selects 5 artists: [Taylor Swift, The Weeknd, Billie Eilish, Arctic Monkeys, SZA]
+```text
+User selects Solo Mode (or Personalized Mode)
          ↓
-Frontend: POST /api/solo-songs { artists: [5 selected] }
+Frontend: POST /api/solo-songs { selectedArtists: [Taylor Swift, The Weeknd] }
          ↓
-Backend: songs.js line 1500 - fetchArtistSongs()
-  For EACH of 5 artists:
-    • Search 1: "Taylor Swift songs" (100 units)
-    • Search 2: "Taylor Swift hits" (100 units)
-    [Total for 1 artist: 200 units]
-  
-  × 5 artists = 1000 units! 🔴
+Backend: songs.js 
+  For EACH artist:
+    • Check 12-Hour `artistCache` in memory
+    • 🟢 CACHE HIT: Slice 15 shuffled songs (0 units)
+    • 🔴 CACHE MISS: Log warning "Artist not prewarmed. Skipping." (0 units)
          ↓
-Backend: lines 1520-1550
-  • Get top 100 results for EACH artist (500 total results)
-  • Merge all results (remove duplicates)
-  • Score all videos
-  • Return top 50
+Backend: 
+  • Merge cached songs
+  • Apply recent-play filtering
+  • Return final queue
          ↓
 Frontend: Player loads
-  • Queue has 50 songs from selected artists ONLY
-  • No mood filtering
+  • Queue has songs strictly from pre-warmed artists
 
-Total API Cost: 1000 units 🔴
-Frequency: Every solo session = huge quota burn!
-Example: 10 users × 1000 units = 10,000 units = ENTIRE DAILY QUOTA!
+Total API Cost: 0 units 🟢 (100% Cache powered)
+Frequency: Pre-warm happens once every 12 hours. Infinite plays cost 0 units.
 ```
 
 ---
@@ -571,78 +572,55 @@ Backend:
 
 ---
 
-## 💾 Caching System (Current Issue)
+## 💾 Caching System (12-Hour Protection Gate)
 
 ### How Caching Works
-```
-Search 1: "chill songs"
+```text
+Step 1: Daily Prewarm (Once per 12 Hours)
          ↓
-Backend: Check cache (map) for key "chill"
+User logs in → Picks 10 Artists
+Backend fetches 1 page per artist (100 units each)
+Stores in `artistCache` Map with 12-hour TTL timestamp.
          ↓
-NOT found → Search YouTube (100 units) ❌
-Store result in cache
-Mark timestamp
+Step 2: Playback Phase (Infinite)
          ↓
-Next 12 minutes:
-Search 1: "chill songs" again
-         ↓
-Backend: Check cache for key "chill"
-         ↓
-FOUND (< 12 min old) → Return from cache (0 units) ✅
-         ↓
-After 12 minutes:
-         ↓
-Cache expires → Next search costs 100 units again ❌
+User enters Solo Mode or Personalized Mode
+Backend checks `artistCache`
+FOUND (< 12 hours old) → Return from cache (0 units) ✅
+NOT FOUND → Silently skip to protect quota (0 units) ✅
 ```
 
-### The Problem
-- **TTL is 12 minutes** - too short!
-- Music listening sessions > 12 min common
-- After 12 min, same mood = new YouTube search
-- Repeated users = repeated queries = quota burn
-
-### The Solution (Quick Win)
-- **Increase TTL to 24 hours**
-- Same mood within 24 hours = 0 units
-- Typical user patterns: 2-3 sessions/day, 1-2 hour gaps
-- With 24-hour cache: first session = 300 units, second session = 0 units
+### The Solution (Implemented)
+- **12-Hour TTL:** Memory cache lasts 12 hours.
+- **Strict Fallback:** Fallback search removed completely from Solo Mode.
+- **Frontend Gating:** UI restricts users to *only* select prewarmed artists during the active 12-hour window.
 
 ---
 
 ## 📈 Quota Management
 
 ### Current Quota Breakdown
-```
+```text
 Daily Quota: 10,000 units (FREE tier)
 
+Pre-warm Gate:        Up to 1,000 units (Max 10 artists * 100)
+Solo Mode Playback:   0 units (Cache only)
+Personalized Mode:    0 units (Cache only)
 Single Mood:          300 units (1 session)
 Blend (2 moods):      600 units (1 session)
-Personalized:         300 units (1 session)
-Solo (5 artists):   1,000 units (1 session) 🔴
 
 Example Day:
-• User 1: Single mood    → 300 units (9:00 AM)
-• User 2: Solo mode      → 1,000 units (9:15 AM)
-• User 3: Blend mode     → 600 units (9:30 AM)
-• User 4: Single mood    → 300 units (9:45 AM)
-• User 5: Solo mode      → 1,000 units (10:00 AM)
-• User 6: Personalized   → 300 units (10:15 AM)
-
-Total: 3,500 units by 10:15 AM (only 6 users)
-Remaining: 6,500 units for the REST of the day
-Average users needed to exhaust: 10,000 / 1,000 = 10 users / day ⚠️
+• 9:00 AM: User 1 Logs in → Prewarms 8 artists (800 units)
+• 9:15 AM: User 1 plays Solo Mode for 4 hours (0 units)
+• 2:00 PM: User 1 plays Personalized Mode (0 units)
+• 9:00 PM: 12-Hour TTL expires. Prompt appears again.
 ```
 
-### Why Solo Mode Burns Fast
-- 5 selected artists = 2 searches per artist = 10 searches
-- 10 searches × 100 units = 1,000 units per session
-- If 10 users use solo mode daily = 10,000 units = entire quota
-
-### Quick Wins to Fix Quota
-1. **Reduce solo searches** (2 → 1 per artist) = Save 50%
-2. **Increase cache TTL** (12 min → 24 hours) = Save 80%
-3. **Batch search results** (fetch 200, not 100) = Save 50%
-4. **Add artist-level cache** = Save recurring searches
+### How We Fixed the Quota Burn
+1. **Frontend UI Lock:** `DailyArtistPrompt.jsx` locks artist selection for 12 hours.
+2. **Backend Cache Enforcement:** `fetchArtistSongs` and `/solo-songs` strictly check `artistCache`.
+3. **Hard Fallback Removed:** If a cache miss happens, it skips rather than burning 100-300 units.
+4. **Global Tracker:** `quotaTracker` object tracks real-time usage across the entire server.
 
 ---
 
@@ -650,12 +628,12 @@ Average users needed to exhaust: 10,000 / 1,000 = 10 users / day ⚠️
 
 | Issue | Status | Impact | Fix |
 |-------|--------|--------|-----|
-| API quota exhausts quickly | 🔴 CRITICAL | Can't support >5 users | See QUOTA_OPTIMIZATION_FIXES.md |
-| YouTube 403 error on solo | 🔴 CRITICAL | Solo mode broken | Rotate API key |
-| Missing serverTimestamp import | 🔴 CRITICAL | Signup fails | Add import to userService.js |
+| API quota exhausts quickly | 🟢 FIXED | Can't support >5 users | Implemented 12-hour Prewarm Gate |
+| YouTube 403 error on solo | 🟢 FIXED | Solo mode broken | Strict cache enforcement added |
+| Missing serverTimestamp import | 🟢 FIXED | Signup fails | Added import to userService.js |
 | Hardcoded server URLs | 🟠 HIGH | Can't deploy | Use env variables |
 | Exposed API keys | 🟠 HIGH | Security risk | Move to .env files |
-| Cache TTL too short | 🟠 HIGH | Quota burn | Increase to 24h |
+| Cache TTL too short | 🟢 FIXED | Quota burn | Increased to 12h, strict check |
 | Memory leak in pendingSearches | 🟡 MEDIUM | Performance | Delete entries after resolve |
 
 ---
@@ -695,20 +673,19 @@ node index.js        # Runs on http://localhost:5000
 
 ## 📱 User Experience Timeline
 
-```
+```text
 0:00  → User opens app
 0:30  → Logs in (Firebase Auth)
-1:00  → Optionally selects artists (Profile page)
+0:45  → 🛑 12-Hour Gate: Selects 10 artists for the session
+1:00  → App pre-loads artists into cache (Quota spent once)
 1:30  → Chooses mode (ModeSelection)
-2:00  → Selects mood/artists (depends on mode)
-3:00  → Backend processes request (~1-2 seconds)
+2:00  → Selects mood/artists (Restricted to pre-warmed list)
+3:00  → Backend processes request (0 API units, pure cache hit)
 4:00  → Player page loads with queue
 4:30  → First song starts playing
 5:00 → Progress bar syncs in real-time
 10:00 → User skips song, next song plays instantly
-30:00 → Auto-fetch triggers (queue < 5 songs)
-45:00 → Backend fetches new songs
-50:00 → Queue refills, playback continues seamless
+30:00 → Auto-fetch triggers, seamlessly pulls from cache again
 ```
 
 ---

@@ -6,8 +6,31 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
   const [searchTerm, setSearchTerm] = useState('');
   const [warning, setWarning] = useState('');
+  const [prewarmedNames, setPrewarmedNames] = useState(null);
 
-  const toggleArtist = (id) => {
+  const [isWindowActive, setIsWindowActive] = useState(false);
+  const [hoursRemaining, setHoursRemaining] = useState(0);
+
+  useEffect(() => {
+    const PREWARM_TTL = 12 * 60 * 60 * 1000;
+    const lastPrewarm = localStorage.getItem('lastDailyArtistPrompt');
+    const active = lastPrewarm && (Date.now() - parseInt(lastPrewarm)) < PREWARM_TTL;
+    
+    if (active) {
+      setIsWindowActive(true);
+      const remainingMs = PREWARM_TTL - (Date.now() - parseInt(lastPrewarm));
+      setHoursRemaining(Math.ceil(remainingMs / (60 * 60 * 1000)));
+      const prewarmed = JSON.parse(localStorage.getItem('prewarmedArtists') || '[]');
+      if (prewarmed.length > 0) {
+        setPrewarmedNames(new Set(prewarmed));
+      }
+    }
+  }, []);
+
+  const toggleArtist = (id, artistName) => {
+    if (isWindowActive && prewarmedNames && !prewarmedNames.has(artistName)) {
+      return; // Prevent selecting non-prewarmed artists
+    }
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -39,6 +62,11 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
         <div className="artist-header">
           <h2>Select Your Favorite Artists</h2>
           <p>Pick at least 3 artists to personalize your experience. Currently selected: <strong>{selectedIds.size}</strong></p>
+          {isWindowActive && (
+            <div style={{ background: 'rgba(29, 185, 84, 0.1)', border: '1px solid #1db954', color: '#1db954', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9rem', textAlign: 'center' }}>
+              Showing your artists for this session. New artists available in {hoursRemaining} hours.
+            </div>
+          )}
           <input
             type="text"
             className="artist-search"
@@ -59,11 +87,13 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
                 <div className="artist-grid">
                   {artistsInCategory.map((artist) => {
                     const isSelected = selectedIds.has(artist.id);
+                    const isGreyedOut = isWindowActive && prewarmedNames && !prewarmedNames.has(artist.name);
                     return (
                       <div
                         key={artist.id}
-                        className={`artist-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => toggleArtist(artist.id)}
+                        className={`artist-card ${isSelected ? 'selected' : ''} ${isGreyedOut ? 'greyed-out' : ''}`}
+                        onClick={() => toggleArtist(artist.id, artist.name)}
+                        style={isGreyedOut ? { opacity: 0.3, cursor: 'not-allowed' } : {}}
                       >
                         <div className="artist-image-container">
                           <img src={artist.image} alt={artist.name} />
