@@ -1,12 +1,12 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, updateDoc, runTransaction, increment } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, runTransaction, increment, serverTimestamp } from "firebase/firestore";
 
 export const syncUserToFirestore = async (user) => {
   if (!user || !user.uid) return;
   try {
     const userRef = doc(db, "users", user.uid);
     const snap = await getDoc(userRef);
-    
+
     if (!snap.exists()) {
       await setDoc(userRef, {
         name: user.displayName || "User",

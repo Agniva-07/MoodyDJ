@@ -15,6 +15,9 @@ function PlayerCard({
   onNext,
   onShuffle,
   onLike,
+  onDislike,
+  liked,
+  disliked,
   likedKeywords,
   dislikedKeywords,
   playerRef,
@@ -138,6 +141,7 @@ function PlayerCard({
 
   return (
     <section className="player-card" style={playerThemeStyle}>
+      <div key={song?.videoId} className="song-card-enter">
       <div className="player-card__noise" />
       <div className="player-card__aura" />
       <div className="player-card__aura player-card__aura--secondary" />
@@ -196,8 +200,12 @@ function PlayerCard({
             ⏭
           </button>
 
-          <button className="control-btn like-btn" onClick={onLike} disabled={!playerReady} {...sharedButtonProps}>
-            ♥
+          <button className={`control-btn like-btn ${liked ? 'active' : ''}`} onClick={onLike} disabled={!playerReady} title="Like" {...sharedButtonProps}>
+            {liked ? '❤️' : '♡'}
+          </button>
+
+          <button className={`control-btn dislike-btn ${disliked ? 'active' : ''}`} onClick={onDislike} disabled={!playerReady} title="Dislike" {...sharedButtonProps}>
+            {disliked ? '👎' : '👎'}
           </button>
         </div>
 
@@ -218,6 +226,7 @@ function PlayerCard({
           <span>👍 {likedKeywords?.join(", ") || "none"}</span>
           <span>👎 {dislikedKeywords?.join(", ") || "none"}</span>
         </div>
+      </div>
       </div>
     </section>
   );

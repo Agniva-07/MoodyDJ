@@ -28,6 +28,9 @@ function SoloPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
+  const [sessionId, setSessionId] = useState("");
+  const [refilling, setRefilling] = useState(false);
 
   const playerRef = useRef(null);
   const lastSavedVideoRef = useRef(null);
@@ -44,7 +47,44 @@ function SoloPage() {
     }
   };
 
-  // 🎧 FETCH SONGS
+  useEffect(() => {
+    const existing = localStorage.getItem("sessionId");
+    if (existing) setSessionId(existing);
+  }, []);
+
+  const handleLike = async () => {
+    const song = songs[currentIndex];
+    if (!song) return;
+    setLiked(prev => !prev);
+    try {
+      await axios.post("http://localhost:5000/api/like", {
+        sessionId,
+        videoId: song.videoId,
+        title: song.title,
+        channelTitle: song.channelTitle,
+      });
+    } catch (err) {
+      console.error("Solo Like failed:", err);
+    }
+  };
+
+  const handleDislike = async () => {
+    const song = songs[currentIndex];
+    if (!song) return;
+    setDisliked(true);
+    try {
+      await axios.post("http://localhost:5000/api/dislike", {
+        sessionId,
+        videoId: song.videoId,
+        title: song.title,
+        channelTitle: song.channelTitle,
+        userId: getCurrentUserId()
+      });
+      handleNextSong();
+    } catch (err) {
+      console.error("Solo Dislike failed:", err);
+    }
+  };
   useEffect(() => {
     if (!artistsLoaded) return;
 
@@ -57,8 +97,7 @@ function SoloPage() {
       try {
         setLoading(true);
 
-        const prewarmed = JSON.parse(localStorage.getItem('prewarmedArtists') || '[]');
-        const artistNames = prewarmed.length > 0 ? prewarmed : getArtistNames();
+        const artistNames = getArtistNames();
 
         const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
           selectedArtists: artistNames,
@@ -88,6 +127,7 @@ function SoloPage() {
     const currentSong = songs[currentIndex];
 
     setLiked(false);
+    setDisliked(false);
 
     fetchStats(currentSong.videoId);
 
@@ -106,6 +146,40 @@ function SoloPage() {
       }
     }
   }, [currentIndex, songs]);
+
+  // Queue refill: when fewer than 5 songs remain, fetch more from cache
+  useEffect(() => {
+    if (!songs.length || refilling) return;
+    const remaining = songs.length - currentIndex;
+    if (remaining > 5) return;
+
+    const refillQueue = async () => {
+      setRefilling(true);
+      try {
+        const artistNames = getArtistNames();
+        const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
+          selectedArtists: artistNames,
+          userId: getCurrentUserId(),
+        });
+        if (data.songs && data.songs.length > 0) {
+          setSongs(prev => {
+            const existingIds = new Set(prev.map(s => s.videoId));
+            const newSongs = data.songs.filter(s => !existingIds.has(s.videoId));
+            if (newSongs.length > 0) {
+              console.log(`📡 Refilled queue with ${newSongs.length} songs`);
+              return [...prev, ...newSongs];
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error("Queue refill failed:", err);
+      } finally {
+        setRefilling(false);
+      }
+    };
+    refillQueue();
+  }, [currentIndex, songs.length, refilling]);
 
   const handleNextSong = () => {
     if (!songs.length) return;
@@ -169,7 +243,9 @@ function SoloPage() {
           onNext={handleNextSong}
           onShuffle={() => setShuffle(!shuffle)}
           liked={liked}
-          onLike={() => setLiked(!liked)}
+          disliked={disliked}
+          onLike={handleLike}
+          onDislike={handleDislike}
           likedKeywords={[]}
           dislikedKeywords={[]}
           playerRef={playerRef}

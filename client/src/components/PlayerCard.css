@@ -84,3 +84,32 @@
     transform: translate3d(12px, -10px, 0) scale(1.04);
   }
 }
+
+/* SECTION 7: Skip Animations */
+.song-card-enter {
+  animation: slideInRight 0.3s ease forwards;
+}
+.song-card-exit {
+  animation: slideOutLeft 0.3s ease forwards;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(60px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-60px); opacity: 0; }
+}
+
+/* Like/Dislike Active States */
+.control-btn.like-btn.active {
+  color: #ef4444 !important;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.control-btn.dislike-btn.active {
+  color: #ef4444 !important;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ARTISTS_DATA } from '../data/artists';
 import './ArtistSelection.css';
 
@@ -6,31 +6,8 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
   const [searchTerm, setSearchTerm] = useState('');
   const [warning, setWarning] = useState('');
-  const [prewarmedNames, setPrewarmedNames] = useState(null);
 
-  const [isWindowActive, setIsWindowActive] = useState(false);
-  const [hoursRemaining, setHoursRemaining] = useState(0);
-
-  useEffect(() => {
-    const PREWARM_TTL = 12 * 60 * 60 * 1000;
-    const lastPrewarm = localStorage.getItem('lastDailyArtistPrompt');
-    const active = lastPrewarm && (Date.now() - parseInt(lastPrewarm)) < PREWARM_TTL;
-    
-    if (active) {
-      setIsWindowActive(true);
-      const remainingMs = PREWARM_TTL - (Date.now() - parseInt(lastPrewarm));
-      setHoursRemaining(Math.ceil(remainingMs / (60 * 60 * 1000)));
-      const prewarmed = JSON.parse(localStorage.getItem('prewarmedArtists') || '[]');
-      if (prewarmed.length > 0) {
-        setPrewarmedNames(new Set(prewarmed));
-      }
-    }
-  }, []);
-
-  const toggleArtist = (id, artistName) => {
-    if (isWindowActive && prewarmedNames && !prewarmedNames.has(artistName)) {
-      return; // Prevent selecting non-prewarmed artists
-    }
+  const toggleArtist = (id) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -43,11 +20,10 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
 
   const handleContinue = () => {
     if (selectedIds.size < 3) {
-      setWarning(`⚠️ We recommend at least 3 artists for the best experience. You have ${selectedIds.size}.`);
+      setWarning(`⚠️ Select at least 3 artists. Currently selected: ${selectedIds.size}`);
+      return;
     }
-    if (selectedIds.size > 0) {
-      onComplete(Array.from(selectedIds));
-    }
+    onComplete(Array.from(selectedIds));
   };
 
   const filteredArtists = ARTISTS_DATA.filter((artist) =>
@@ -62,11 +38,6 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
         <div className="artist-header">
           <h2>Select Your Favorite Artists</h2>
           <p>Pick at least 3 artists to personalize your experience. Currently selected: <strong>{selectedIds.size}</strong></p>
-          {isWindowActive && (
-            <div style={{ background: 'rgba(29, 185, 84, 0.1)', border: '1px solid #1db954', color: '#1db954', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9rem', textAlign: 'center' }}>
-              Showing your artists for this session. New artists available in {hoursRemaining} hours.
-            </div>
-          )}
           <input
             type="text"
             className="artist-search"
@@ -87,13 +58,11 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
                 <div className="artist-grid">
                   {artistsInCategory.map((artist) => {
                     const isSelected = selectedIds.has(artist.id);
-                    const isGreyedOut = isWindowActive && prewarmedNames && !prewarmedNames.has(artist.name);
                     return (
                       <div
                         key={artist.id}
-                        className={`artist-card ${isSelected ? 'selected' : ''} ${isGreyedOut ? 'greyed-out' : ''}`}
-                        onClick={() => toggleArtist(artist.id, artist.name)}
-                        style={isGreyedOut ? { opacity: 0.3, cursor: 'not-allowed' } : {}}
+                        className={`artist-card ${isSelected ? 'selected' : ''}`}
+                        onClick={() => toggleArtist(artist.id)}
                       >
                         <div className="artist-image-container">
                           <img src={artist.image} alt={artist.name} />
@@ -108,17 +77,17 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
             );
           })}
         </div>
-        
+
         <div className="artist-footer">
           {warning && (
             <p style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: '0.5rem', textAlign: 'center' }}>{warning}</p>
           )}
           <button
-            className={`artist-continue-btn ${selectedIds.size > 0 ? 'active' : 'disabled'}`}
+            className={`artist-continue-btn ${selectedIds.size >= 3 ? 'active' : 'disabled'}`}
             onClick={handleContinue}
-            disabled={selectedIds.size === 0}
+            disabled={selectedIds.size < 3}
           >
-            {selectedIds.size >= 3 ? "Continue" : selectedIds.size > 0 ? `Continue with ${selectedIds.size}` : "Select at least 1"}
+            {selectedIds.size >= 3 ? "Continue" : `Select at least ${3 - selectedIds.size} more`}
           </button>
         </div>
       </div>

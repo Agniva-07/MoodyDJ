@@ -23,4 +23,4 @@ const initFirebaseAdmin = () => {
   }
 };
 
-module.exports = { initFirebaseAdmin };
+module.exports = { initFirebaseAdmin, admin };

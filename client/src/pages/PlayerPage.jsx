@@ -24,6 +24,7 @@ function PlayerPage({
   likedKeywords,
   dislikedKeywords,
   liked,
+  disliked,
   playerRef,
 }) {
   const prefersReducedMotion = useReducedMotion();
@@ -53,6 +54,7 @@ function PlayerPage({
             likedKeywords={likedKeywords}
             dislikedKeywords={dislikedKeywords}
             liked={liked}
+            disliked={disliked}
             playerRef={playerRef}
           />
         </motion.div>

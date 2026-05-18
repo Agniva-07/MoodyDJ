@@ -70,6 +70,9 @@ function App() {
   const [sessionId, setSessionId] = useState("");
   const [autoPlay] = useState(true);
   const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
+  const [quotaSafe, setQuotaSafe] = useState(true);
+  const [quotaUnits, setQuotaUnits] = useState(0);
   const playerRef = useRef(null);
   const lastSavedVideoRef = useRef(null);
 
@@ -115,6 +118,20 @@ function App() {
       loadRecent();
     }
   }, [sessionId]);
+
+  useEffect(() => {
+    const API_URL = "http://localhost:5000";
+    const checkQuota = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/quota-status`);
+        setQuotaSafe(res.data.isQuotaSafe);
+        setQuotaUnits(res.data.unitsUsed);
+      } catch (e) {}
+    };
+    checkQuota();
+    const interval = setInterval(checkQuota, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleNextSong = () => {
     if (songs.length === 0) return;
@@ -207,8 +224,9 @@ function App() {
     
     const nowPlaying = songs[currentIndex];
     
-    // Reset like state when song changes
+    // Reset states when song changes
     setLiked(false);
+    setDisliked(false);
     
     fetchStats(nowPlaying.videoId);
     
@@ -314,41 +332,21 @@ function App() {
   const handleDislike = async () => {
     const song = songs[currentIndex];
     if (!song) return;
-
+    const API_URL = "http://localhost:5000";
+    
+    setDisliked(true);
     try {
-      // 🔥 STEP 1: Call backend to dislike and remove similar videos
-      const dislikeRes = await axios.post("http://localhost:5000/api/dislike", {
+      await axios.post(`${API_URL}/api/dislike`, {
         sessionId,
         videoId: song.videoId,
         title: song.title,
         channelTitle: song.channelTitle,
+        userId: getCurrentUserId()
       });
-      console.log("👎 Dislike registered:", dislikeRes.data);
-
-      // 🔥 STEP 2: Clear local queue
-      setSongs([]);
-      setCurrentIndex(0);
-      setPlayedIds(new Set());
-
-      // 🔥 STEP 3: Fetch fresh songs from backend
-      const requestParams = buildMoodRequestParams(selectedMood || blendConfig.mood1);
-      const res = await axios.get("http://localhost:5000/api/songs", {
-        params: requestParams,
-      });
-      
-      const newSongs = res.data.songs || [];
-      setSongs(newSongs);
-      setCurrentIndex(0);
-
-      // 🔥 STEP 4: Play first new song (YouTube embed iframe will auto-load)
-      if (newSongs.length > 0) {
-        console.log("▶️ Playing new song:", newSongs[0].videoId);
-        setLiked(false);
-      }
-
-      console.log("✅ Queue updated with", newSongs.length, "new songs");
+      // Auto skip to next song after dislike
+      handleNextSong();
     } catch (err) {
-      console.error("❌ Dislike failed:", err);
+      console.error("Dislike failed:", err.message);
     }
   };
 
@@ -455,6 +453,7 @@ function App() {
                 likedKeywords={likedKeywords}
                 dislikedKeywords={dislikedKeywords}
                 liked={liked}
+                disliked={disliked}
                 playerRef={playerRef}
               />
             </ProtectedRoute>
@@ -483,6 +482,14 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
+      <div style={{
+        position:'fixed', bottom:'16px', right:'16px',
+        width:'10px', height:'10px', borderRadius:'50%',
+        background: quotaSafe ? '#1db954' : '#ff4444',
+        zIndex: 9999,
+        boxShadow: '0 0 10px rgba(0,0,0,0.5)',
+        cursor: 'help'
+      }} title={`Quota: ${quotaUnits}/10000`} />
     </>
   );
 }
