@@ -315,6 +315,8 @@ function App() {
         videoId: song.videoId,
         title: song.title,
         channelTitle: song.channelTitle,
+        thumbnail: song.thumbnail,
+        userId: getCurrentUserId()
       });
       console.log("❤️ Like registered:", song.videoId);
     } catch (err) {
@@ -362,6 +364,19 @@ function App() {
 
   const currentSong = songs[currentIndex];
 
+  const getPrewarmedArtistIds = () => {
+    const prewarmedArtists = localStorage.getItem('prewarmedArtists');
+    if (!prewarmedArtists) return [];
+    try {
+      const names = JSON.parse(prewarmedArtists);
+      return names
+        .map(name => ARTISTS_DATA.find(a => a.name === name)?.id)
+        .filter(id => id !== undefined);
+    } catch {
+      return [];
+    }
+  };
+
   const handleArtistSelectionComplete = (artists) => {
     setSelectedArtists(artists); // Goes through ArtistContext → Firestore + localStorage
     setShowArtistSelection(false);
@@ -386,7 +401,8 @@ function App() {
             <ProtectedRoute>
               {showArtistSelection && (
                 <ArtistSelection 
-                  initialSelected={selectedArtists} 
+                  initialSelected={selectedArtists}
+                  prewarmedIds={getPrewarmedArtistIds()}
                   onComplete={handleArtistSelectionComplete} 
                 />
               )}
@@ -410,7 +426,8 @@ function App() {
             <ProtectedRoute>
               {showArtistSelection && (
                 <ArtistSelection 
-                  initialSelected={selectedArtists} 
+                  initialSelected={selectedArtists}
+                  prewarmedIds={getPrewarmedArtistIds()}
                   onComplete={handleArtistSelectionComplete} 
                 />
               )}
@@ -464,7 +481,8 @@ function App() {
           element={
             <ProtectedRoute>
               <ArtistSelection 
-                initialSelected={selectedArtists} 
+                initialSelected={selectedArtists}
+                prewarmedIds={getPrewarmedArtistIds()}
                 onComplete={(artists) => {
                   handleArtistSelectionComplete(artists);
                 }} 

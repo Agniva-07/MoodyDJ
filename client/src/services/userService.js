@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, updateDoc, runTransaction, increment, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, runTransaction, increment, serverTimestamp, collection, getDocs } from "firebase/firestore";
 
 export const syncUserToFirestore = async (user) => {
   if (!user || !user.uid) return;
@@ -48,11 +48,12 @@ export const saveHistory = async (userId, song) => {
   try {
     const newHistory = await runTransaction(db, async (transaction) => {
       const snap = await transaction.get(userRef);
-      if (!snap.exists()) {
-        throw new Error("User document does not exist");
+      
+      let data = {};
+      if (snap.exists()) {
+        data = snap.data();
       }
 
-      const data = snap.data();
       let history = data.history || [];
 
       // Remove duplicates
@@ -75,10 +76,10 @@ export const saveHistory = async (userId, song) => {
       }
 
       // Atomic transaction update — also bump totalSongsPlayed
-      transaction.update(userRef, {
+      transaction.set(userRef, {
         history,
-        totalSongsPlayed: (data.totalSongsPlayed || 0) + 1,
-      });
+        totalSongsPlayed: (data?.totalSongsPlayed || 0) + 1,
+      }, { merge: true });
 
       return history;
     });
@@ -98,10 +99,22 @@ export const addListeningTime = async (userId, durationSeconds) => {
   if (!userId || !durationSeconds || durationSeconds <= 0) return;
   try {
     const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
+    await setDoc(userRef, {
       totalListeningTime: increment(Math.round(durationSeconds)),
-    });
+    }, { merge: true });
   } catch (error) {
     console.error("Failed to update listening time:", error);
+  }
+};
+
+export const getLikedSongs = async (userId) => {
+  if (!userId) return [];
+  try {
+    const likedSongsRef = collection(db, "users", userId, "likedSongs");
+    const snap = await getDocs(likedSongsRef);
+    return snap.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("Error fetching liked songs:", error);
+    return [];
   }
 };

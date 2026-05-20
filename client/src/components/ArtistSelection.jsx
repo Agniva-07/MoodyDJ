@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import { ARTISTS_DATA } from '../data/artists';
 import './ArtistSelection.css';
 
-const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
+const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
   const [searchTerm, setSearchTerm] = useState('');
   const [warning, setWarning] = useState('');
 
+  const isArtistDisabled = (id) => {
+    return prewarmedIds.length > 0 && !prewarmedIds.includes(id);
+  };
+
   const toggleArtist = (id) => {
+    if (isArtistDisabled(id)) return; // Don't allow toggling disabled artists
+
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -58,15 +64,18 @@ const ArtistSelection = ({ onComplete, initialSelected = [] }) => {
                 <div className="artist-grid">
                   {artistsInCategory.map((artist) => {
                     const isSelected = selectedIds.has(artist.id);
+                    const isDisabled = isArtistDisabled(artist.id);
                     return (
                       <div
                         key={artist.id}
-                        className={`artist-card ${isSelected ? 'selected' : ''}`}
+                        className={`artist-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
                         onClick={() => toggleArtist(artist.id)}
+                        title={isDisabled ? 'Not available today — select during morning setup.' : ''}
                       >
                         <div className="artist-image-container">
                           <img src={artist.image} alt={artist.name} />
                           {isSelected && <div className="artist-checkmark">✓</div>}
+                          {isDisabled && <div className="artist-lock-icon">🔒</div>}
                         </div>
                         <span className="artist-name">{artist.name}</span>
                       </div>

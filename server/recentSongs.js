@@ -37,7 +37,12 @@ const addRecentSongs = async (userId, videoIds = []) => {
     const now = Date.now();
     const incoming = videoIds
       .filter(Boolean)
-      .map((videoId, index) => ({ videoId, ts: now + index }));
+      .map((song, index) => {
+        if (typeof song === "string") {
+          return { videoId: song, ts: now + index };
+        }
+        return { ...song, ts: now + index };
+      });
 
     const merged = new Map();
     [...incoming, ...currentRecent].forEach((entry) => {

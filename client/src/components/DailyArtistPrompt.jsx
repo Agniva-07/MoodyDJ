@@ -10,6 +10,7 @@ const DailyArtistPrompt = () => {
     onboardingChecked,
     completeOnboarding,
     selectedArtists,
+    currentUid,
   } = useArtists();
 
   const [selected, setSelected] = useState([]);
@@ -20,6 +21,7 @@ const DailyArtistPrompt = () => {
 
   // Don't show if onboarding check hasn't completed or already onboarded today
   if (!onboardingChecked || onboardingCompletedToday) return null;
+  if (!currentUid) return null; // Don't show for unauthenticated users
 
   const toggleArtist = (artistId) => {
     setSelected(prev => {
@@ -43,6 +45,8 @@ const DailyArtistPrompt = () => {
     }, 600);
 
     try {
+      const today = new Date().toLocaleDateString("en-CA");
+
       // Resolve IDs to names for the prewarm API
       const artistNames = selected.map(id => {
         const found = ARTISTS_DATA.find(a => a.id === id);
@@ -53,16 +57,17 @@ const DailyArtistPrompt = () => {
       await completeOnboarding(selected);
 
       // 2. Prewarm the backend cache with these artists
-      await axios.post('http://localhost:5000/api/prewarm-artists', {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
         artists: artistNames
       });
 
       clearInterval(progressInterval);
       setWarmingProgress(100);
-      setSuccessMessage(`✅ ${artistNames.length * 75} songs loaded. Ready to play!`);
+      setSuccessMessage(`✅ Up to ${artistNames.length * 50} songs pre-loaded. Ready to play!`);
 
-      // Store prewarm names for local reference
+      // Store prewarm names and date for local reference
       localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
+      localStorage.setItem('lastPrewarmDate', today);
 
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
@@ -77,19 +82,26 @@ const DailyArtistPrompt = () => {
     if (selectedArtists.length < 3) return;
 
     try {
+      const today = new Date().toLocaleDateString("en-CA");
+      const lastPrewarmDate = localStorage.getItem('lastPrewarmDate');
+      const alreadyWarmedToday = lastPrewarmDate === today;
+
       // Mark today as onboarded using existing artists
       await completeOnboarding(selectedArtists);
 
-      // Background prewarm
-      const artistNames = selectedArtists.map(id => {
-        const found = ARTISTS_DATA.find(a => a.id === id);
-        return found ? found.name : id;
-      });
-      localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
+      // Background prewarm only if not already done today
+      if (!alreadyWarmedToday) {
+        const artistNames = selectedArtists.map(id => {
+          const found = ARTISTS_DATA.find(a => a.id === id);
+          return found ? found.name : id;
+        });
+        localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
+        localStorage.setItem('lastPrewarmDate', today);
 
-      axios.post('http://localhost:5000/api/prewarm-artists', {
-        artists: artistNames
-      }).catch(err => console.log("Background prewarm error:", err));
+        axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
+          artists: artistNames
+        }).catch(err => console.log("Background prewarm error:", err));
+      }
     } catch (err) {
       console.error("Skip onboarding failed:", err);
     }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { db, auth } from "../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { ARTISTS_DATA } from "../data/artists";
 
@@ -74,18 +74,16 @@ export const ArtistProvider = ({ children }) => {
     setSelectedArtistsRaw(newArtists);
     localStorage.setItem("selectedArtists", JSON.stringify(newArtists));
 
-    const userStr = localStorage.getItem("user");
-    if (userStr) {
-      const user = JSON.parse(userStr);
+    if (currentUid) {
       try {
-        await updateDoc(doc(db, "users", user.uid), {
+        await setDoc(doc(db, "users", currentUid), {
           selectedArtists: newArtists,
-        });
+        }, { merge: true });
       } catch (err) {
         console.error("Failed to sync artists to Firestore:", err);
       }
     }
-  }, []);
+  }, [currentUid]);
 
   // Mark onboarding as completed today — writes to Firestore
   const completeOnboarding = useCallback(async (artistIds) => {
@@ -94,22 +92,20 @@ export const ArtistProvider = ({ children }) => {
 
     const today = new Date().toLocaleDateString("en-CA");
 
-    const userStr = localStorage.getItem("user");
-    if (userStr) {
-      const user = JSON.parse(userStr);
+    if (currentUid) {
       try {
-        await updateDoc(doc(db, "users", user.uid), {
+        await setDoc(doc(db, "users", currentUid), {
           selectedArtists: artistIds,
           lastOnboardedDate: today,
-        });
+        }, { merge: true });
+        setOnboardingCompletedToday(true);
       } catch (err) {
         console.error("Failed to save onboarding to Firestore:", err);
       }
     }
 
-    setOnboardingCompletedToday(true);
     localStorage.setItem("lastDailyArtistPrompt", Date.now().toString());
-  }, []);
+  }, [currentUid]);
 
   // Helper: resolve artist IDs to display names
   const getArtistNames = useCallback(() => {

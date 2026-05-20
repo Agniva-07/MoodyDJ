@@ -5,6 +5,17 @@ const { getRecentSongs, addRecentSongs } = require("../recentSongs");
 const router = express.Router();
 
 // ============================================================
+// UTILITY: Non-blocking task executor
+// ============================================================
+const runNonBlocking = (task) => {
+  Promise.resolve()
+    .then(task)
+    .catch((error) => {
+      console.error("Background task failed:", error.message);
+    });
+};
+
+// ============================================================
 // PHASE 2: PART A - Quota Tracker & Fallback System
 // ============================================================
 function getNextMidnightPT() {
@@ -25,17 +36,66 @@ const quotaTracker = {
 router.quotaTracker = quotaTracker;
 router.getNextMidnightPT = getNextMidnightPT;
 
+async function initQuotaTracker() {
+  try {
+    const db = require("../firebaseAdmin").initFirebaseAdmin();
+    if (!db) return;
+    const doc = await db.collection("system").doc("quotaTracker").get();
+    if (doc.exists) {
+      const data = doc.data();
+      const now = Date.now();
+      // Only restore if it's still the same day
+      if (data.resetTime > now) {
+        quotaTracker.unitsUsed = data.unitsUsed || 0;
+        quotaTracker.resetTime = data.resetTime;
+        if (quotaTracker.unitsUsed >= 8500) quotaTracker.zeroApiMode = true;
+        console.log(`📊 Restored quota: ${quotaTracker.unitsUsed}/10000`);
+      } else {
+        // Reset time passed, update Firestore to 0
+        await db.collection("system").doc("quotaTracker").set({
+          unitsUsed: 0,
+          resetTime: getNextMidnightPT()
+        });
+        console.log("🔄 Reset time passed, initialized quota to 0 in Firestore");
+      }
+    } else {
+      // Document does not exist, initialize it
+      await db.collection("system").doc("quotaTracker").set({
+        unitsUsed: 0,
+        resetTime: getNextMidnightPT()
+      });
+    }
+  } catch(e) { console.error("quota restore failed", e.message); }
+}
+
+runNonBlocking(initQuotaTracker);
+
 function trackQuotaUsage(units) {
   quotaTracker.unitsUsed += units;
   console.log(`📊 Quota Usage: ${quotaTracker.unitsUsed}/10000 units`);
-  if (quotaTracker.unitsUsed >= 8000 && !quotaTracker.zeroApiMode) {
+  if (quotaTracker.unitsUsed >= 8500 && !quotaTracker.zeroApiMode) {
     quotaTracker.zeroApiMode = true;
     console.log("🔴 ZERO API MODE: All requests serving from local memory only");
+  }
+  
+  // Persist periodically (every 200 units)
+  if (quotaTracker.unitsUsed % 200 < units) {
+    runNonBlocking(async () => {
+      try {
+        const db = require("../firebaseAdmin").initFirebaseAdmin();
+        if (db) {
+          await db.collection("system").doc("quotaTracker").set({
+            unitsUsed: quotaTracker.unitsUsed,
+            resetTime: quotaTracker.resetTime
+          }, { merge: true });
+        }
+      } catch(e) {}
+    });
   }
 }
 
 function isQuotaSafe(units) {
-  return quotaTracker.unitsUsed + units <= 8000;
+  return quotaTracker.unitsUsed + units <= 7000;
 }
 
 // PHASE 2: PART C - Fallback Chain
@@ -340,14 +400,6 @@ const parseList = (value) => {
     .filter(Boolean);
 };
 
-const runNonBlocking = (task) => {
-  Promise.resolve()
-    .then(task)
-    .catch((error) => {
-      console.error("Background task failed:", error.message);
-    });
-};
-
 const applyRecentSongFilter = (videos, recentSongs = [], dislikedVideos = []) => {
   if (!Array.isArray(videos) || videos.length === 0) return [];
 
@@ -519,6 +571,20 @@ const touchSession = (sessionId) => {
  */
 const scoreVideos = async (videoIds) => {
   if (!videoIds || videoIds.length === 0) return [];
+
+  if (!isQuotaSafe(1)) {
+    console.log("🔴 Quota guard: skipping scoreVideos");
+    return videoIds.map(id => ({ 
+      videoId: id, 
+      score: DEFAULT_FALLBACK_SCORE, 
+      viewCount: 0,
+      likeCount: 0, 
+      duration: 300, 
+      isMix: false, 
+      title: "", 
+      channelTitle: "" 
+    }));
+  }
 
   // SECTION 7C: Zero API mode — skip videos.list entirely
   if (quotaTracker.zeroApiMode) {
@@ -1391,7 +1457,13 @@ router.get("/songs", async (req, res) => {
       const responseSongs = Array.from(songsDedupMap.values());
 
       if (userId) {
-        runNonBlocking(() => addRecentSongs(userId, responseSongs.map((song) => song.videoId)));
+        runNonBlocking(() => addRecentSongs(userId, responseSongs.map(song => ({
+          videoId: song.videoId,
+          title: song.title,
+          channelTitle: song.channelTitle,
+          thumbnail: song.thumbnail,
+          playedAt: Date.now()
+        }))));
       }
 
       return res.json({
@@ -1467,7 +1539,13 @@ router.get("/songs", async (req, res) => {
     const responseSongs = Array.from(blendDedupMap.values());
 
     if (userId) {
-      runNonBlocking(() => addRecentSongs(userId, responseSongs.map((song) => song.videoId)));
+      runNonBlocking(() => addRecentSongs(userId, responseSongs.map(song => ({
+        videoId: song.videoId,
+        title: song.title,
+        channelTitle: song.channelTitle,
+        thumbnail: song.thumbnail,
+        playedAt: Date.now()
+      }))));
     }
 
     return res.json({
@@ -1508,7 +1586,7 @@ router.get("/songs", async (req, res) => {
 //           Refills queue only if < 5 songs left
 router.get("/next-song", async (req, res) => {
   try {
-    const { sessionId } = req.query;
+    const { sessionId, userId } = req.query;
 
     if (!sessionId) {
       return res.status(400).json({ error: "sessionId required" });
@@ -1526,10 +1604,23 @@ router.get("/next-song", async (req, res) => {
       return res.status(500).json({ error: "Could not fetch song" });
     }
 
+    if (userId) {
+      runNonBlocking(() => addRecentSongs(userId, [{
+        videoId: nextSong.videoId,
+        title: nextSong.title,
+        channelTitle: nextSong.channelTitle,
+        thumbnail: nextSong.thumbnail,
+        playedAt: Date.now()
+      }]));
+    }
+
     return res.json({
       song: {
         videoId: nextSong.videoId,
-        title: "Loading...", // Fetch full title on demand if needed
+        title: nextSong.title,
+        channelTitle: nextSong.channelTitle,
+        thumbnail: nextSong.thumbnail,
+        duration: nextSong.duration,
       },
       meta: {
         source: "queue",
@@ -1617,7 +1708,7 @@ router.get("/queue-status", (req, res) => {
 // ✅ NEW: Implement like behavior with bias for future selections
 router.post("/like", async (req, res) => {
   try {
-    const { sessionId, videoId, title, channelTitle, userId } = req.body;
+    const { sessionId, videoId, title, channelTitle, thumbnail, userId } = req.body;
 
     if (!sessionId || !videoId) {
       return res.status(400).json({ error: "sessionId and videoId required" });
@@ -1683,6 +1774,17 @@ router.post("/like", async (req, res) => {
           kwList.sort((a, b) => b.count - a.count);
           kwList = kwList.slice(0, 20);
           await prefRef.doc("likedKeywords").set({ keywords: kwList });
+
+          // ✅ NEW: Save liked song directly to a 'likedSongs' subcollection
+          const likedSongsRef = db.collection("users").doc(userId).collection("likedSongs");
+          await likedSongsRef.doc(videoId).set({
+            videoId,
+            title: title || "Unknown Title",
+            channelTitle: channelTitle || "Unknown Artist",
+            thumbnail: thumbnail || "",
+            likedAt: Date.now()
+          }, { merge: true });
+
         } catch (e) {
           console.error("❌ Firestore like persist failed:", e.message);
         }
@@ -1740,7 +1842,7 @@ router.post("/dislike", async (req, res) => {
       const videoKeywords = extractKeywords(video.title || "", video.channelTitle || "");
       const commonKeywords = videoKeywords.filter(k => session.dislikedKeywords.includes(k));
       const similarity = commonKeywords.length / Math.max(videoKeywords.length, 1);
-      return similarity < similarityThreshold;
+      return similarity <= similarityThreshold;
     });
 
     console.log(`📊 Queue after filtering: ${session.videos.length} videos`);
@@ -1951,6 +2053,16 @@ const cleanupSessions = () => {
     }
   }
 
+  // Clear stale blend cache entries
+  for (const [key, val] of blendCache.entries()) {
+    if (now - val.timestamp > CACHE_TTL) blendCache.delete(key);
+  }
+
+  // Cap sessionSongPool per mood
+  for (const [mood, pool] of sessionSongPool.entries()) {
+    if (pool.length > 200) sessionSongPool.set(mood, pool.slice(-200));
+  }
+
   console.log("🧹 CLEANUP: removed inactive sessions:", removedSessions);
 };
 
@@ -2008,6 +2120,11 @@ const fetchArtistSongs = async (artist, maxResultsPerFetch = 15) => {
 };
 
 const filterValidVideos = async (videos) => {
+  if (!isQuotaSafe(1)) {
+    console.log("🔴 Quota guard: skipping filterValidVideos");
+    return videos;
+  }
+
   // FIX 1: Deduplicate first before fetching details
   const seen = new Set();
   const uniqueVideos = videos.filter(v => {
@@ -2088,6 +2205,10 @@ const fillRemaining = (finalVideos, extraPool, targetCount = 20) => {
 // ============================================================
 router.post("/prewarm-artists", async (req, res) => {
   try {
+    if (!isQuotaSafe(200)) {
+      return res.json({ ok: false, message: "Quota limit reached, skipping prewarm" });
+    }
+
     const { artists } = req.body;
     if (!artists || !Array.isArray(artists)) {
       return res.status(400).json({ error: "Missing artists array" });
@@ -2232,7 +2353,13 @@ router.post("/solo-songs", async (req, res) => {
     const resultToReturn = Array.from(finalMap.values());
 
     if (userId) {
-      runNonBlocking(() => addRecentSongs(userId, resultToReturn.map((song) => song.videoId)));
+      runNonBlocking(() => addRecentSongs(userId, resultToReturn.map(song => ({
+        videoId: song.videoId,
+        title: song.title,
+        channelTitle: song.channelTitle,
+        thumbnail: song.thumbnail,
+        playedAt: Date.now()
+      }))));
     }
 
     return res.json({ songs: resultToReturn });

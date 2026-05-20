@@ -62,6 +62,8 @@ function SoloPage() {
         videoId: song.videoId,
         title: song.title,
         channelTitle: song.channelTitle,
+        thumbnail: song.thumbnail,
+        userId: getCurrentUserId()
       });
     } catch (err) {
       console.error("Solo Like failed:", err);
@@ -118,6 +120,18 @@ function SoloPage() {
     };
 
     fetchSoloMix();
+
+    // Fetch initial history
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      getDoc(doc(db, "users", user.uid)).then(snap => {
+        if (snap.exists() && snap.data().history) {
+          setRecentSongs(snap.data().history);
+        }
+      }).catch(err => console.log("Failed to load initial history:", err));
+    }
+
   }, [artistsLoaded, selectedArtists, navigate, getArtistNames]);
 
   // 🎵 HANDLE SONG CHANGE

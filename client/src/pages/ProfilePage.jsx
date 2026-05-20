@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import ArtistSelection from "../components/ArtistSelection";
 import { useArtists } from "../context/ArtistContext";
-import { getUserData } from "../services/userService";
+import { getUserData, getLikedSongs } from "../services/userService";
 import { ARTISTS_DATA } from "../data/artists";
 
 function ProfilePage() {
@@ -11,6 +11,7 @@ function ProfilePage() {
   const { selectedArtists, setSelectedArtists } = useArtists();
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [likedSongsData, setLikedSongsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArtistEditor, setShowArtistEditor] = useState(false);
 
@@ -27,6 +28,10 @@ function ProfilePage() {
       try {
         const data = await getUserData(parsedUser.uid);
         setUserData(data);
+        
+        // Fetch liked songs
+        const likedSongs = await getLikedSongs(parsedUser.uid);
+        setLikedSongsData(likedSongs);
       } catch (err) {
         console.error("Failed to load profile:", err);
       } finally {
@@ -46,6 +51,19 @@ function ProfilePage() {
     return found ? found.name : id;
   };
 
+  const getPrewarmedArtistIds = () => {
+    const prewarmedArtists = localStorage.getItem('prewarmedArtists');
+    if (!prewarmedArtists) return [];
+    try {
+      const names = JSON.parse(prewarmedArtists);
+      return names
+        .map(name => ARTISTS_DATA.find(a => a.name === name)?.id)
+        .filter(id => id !== undefined);
+    } catch {
+      return [];
+    }
+  };
+
   if (loading) {
     return (
       <div className="landing-page" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
@@ -63,13 +81,14 @@ function ProfilePage() {
     return (
       <ArtistSelection
         initialSelected={selectedArtists}
+        prewarmedIds={getPrewarmedArtistIds()}
         onComplete={handleArtistUpdate}
       />
     );
   }
 
-  const history = userData?.history || [];
-  const liked = userData?.liked || [];
+  const history = userData?.recentSongs || userData?.history || [];
+  const liked = likedSongsData || [];
   const disliked = userData?.disliked || [];
   const totalSongsPlayed = history.length;
   const totalListeningMinutes = userData?.totalListeningTime
@@ -161,6 +180,66 @@ function ProfilePage() {
                   </span>
                 </span>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Liked Songs Library */}
+        <div className="player-card glass" style={{ maxWidth: "700px", margin: "0 auto 2rem", padding: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
+            <h3 style={{ color: "#e0f2fe", margin: 0, fontSize: "1.2rem" }}>❤️ Liked Songs</h3>
+          </div>
+          {liked.length === 0 ? (
+            <p style={{ color: "#94a3b8" }}>No liked songs yet.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.8rem" }}>
+              {liked.slice(0, 10).map((song) => (
+                <div key={song.videoId} style={{ display: "flex", alignItems: "center", gap: "1rem", background: "rgba(255,255,255,0.05)", padding: "0.8rem", borderRadius: "8px" }}>
+                  <img src={song.thumbnail} alt="" style={{ width: "60px", height: "45px", objectFit: "cover", borderRadius: "4px" }} />
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <h4 style={{ margin: 0, color: "#e0f2fe", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.8rem" }}>{song.channelTitle}</p>
+                  </div>
+                </div>
+              ))}
+              {liked.length > 10 && (
+                <p style={{ color: "#94a3b8", fontSize: "0.85rem", textAlign: "center", marginTop: "1rem" }}>
+                  + {liked.length - 10} more in your library
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Recently Played Songs */}
+        <div className="player-card glass" style={{ maxWidth: "700px", margin: "0 auto 2rem", padding: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
+            <h3 style={{ color: "#e0f2fe", margin: 0, fontSize: "1.2rem" }}>🎵 Recently Played</h3>
+          </div>
+          {history.length === 0 ? (
+            <p style={{ color: "#94a3b8" }}>No recently played songs yet.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.8rem" }}>
+              {history.slice(0, 10).map((song, index) => (
+                <div key={`${song.videoId}-${index}`} style={{ display: "flex", alignItems: "center", gap: "1rem", background: "rgba(255,255,255,0.05)", padding: "0.8rem", borderRadius: "8px" }}>
+                  {song.thumbnail ? (
+                    <img src={song.thumbnail} alt="" style={{ width: "60px", height: "45px", objectFit: "cover", borderRadius: "4px" }} />
+                  ) : (
+                    <div style={{ width: "60px", height: "45px", background: "rgba(147,51,234,0.3)", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ color: "#e0f2fe", fontSize: "1.5rem" }}>♪</span>
+                    </div>
+                  )}
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <h4 style={{ margin: 0, color: "#e0f2fe", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.8rem" }}>{song.channelTitle}</p>
+                  </div>
+                </div>
+              ))}
+              {history.length > 10 && (
+                <p style={{ color: "#94a3b8", fontSize: "0.85rem", textAlign: "center", marginTop: "1rem" }}>
+                  + {history.length - 10} more in your history
+                </p>
+              )}
             </div>
           )}
         </div>
