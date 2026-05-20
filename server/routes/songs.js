@@ -5,7 +5,7 @@ const { getRecentSongs, addRecentSongs } = require("../recentSongs");
 const router = express.Router();
 
 // ============================================================
-// UTILITY: Non-blocking task executor
+// UTILITY: Non-blocking task executor (must be defined early)
 // ============================================================
 const runNonBlocking = (task) => {
   Promise.resolve()
@@ -1354,20 +1354,21 @@ const loadUserPreferences = async (userId, session) => {
       prefRef.doc("dislikedVideos").get()
     ]);
 
+    session.likedKeywords = [];
     if (likedDoc.exists) {
       const kwList = likedDoc.data().keywords || [];
       session.likedKeywords = kwList.map(k => k.keyword).slice(0, 10);
     }
     
+    session.dislikedKeywords = [];
     if (dislikedDoc.exists) {
       const kwList = dislikedDoc.data().keywords || [];
       session.dislikedKeywords = kwList.map(k => k.keyword).slice(0, 10);
     }
 
+    session.dislikedVideos = [];
     if (dislikedVidDoc.exists) {
       session.dislikedVideos = dislikedVidDoc.data().videos || [];
-    } else {
-      session.dislikedVideos = [];
     }
     
     console.log(`✅ Loaded preferences for user ${userId}: ${session.likedKeywords.length} liked, ${session.dislikedKeywords.length} disliked keywords`);
@@ -2304,8 +2305,50 @@ router.post("/solo-songs", async (req, res) => {
         }
       }
 
+      // Level 1.5: API Fetch (if quota safe)
+      if (isQuotaSafe(100)) {
+        console.log(`🔍 CACHE MISS: ${name}. Fetching from YouTube API...`);
+        try {
+          const [popular, hits] = await Promise.all([
+            fetchSearchPages(`${name} popular songs official`, 1, 30).catch(() => []),
+            fetchSearchPages(`${name} best hits playlist`, 1, 20).catch(() => [])
+          ]);
+          
+          const artistVideos = [];
+          const seen = new Set();
+          
+          const processItem = (item) => {
+            if (!seen.has(item.id.videoId)) {
+              seen.add(item.id.videoId);
+              artistVideos.push({
+                videoId: item.id.videoId,
+                title: item.snippet.title,
+                channelTitle: item.snippet.channelTitle,
+                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+                sourceArtist: name
+              });
+            }
+          };
+          
+          popular.forEach(processItem);
+          hits.forEach(processItem);
+          
+          if (artistVideos.length > 0) {
+            artistCache.set(name, {
+              videos: artistVideos,
+              timestamp: Date.now(),
+              offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
+            });
+            console.log(`✅ Fetched and cached missing artist: ${name} (${artistVideos.length} songs)`);
+            return shuffleResults(artistVideos).slice(0, 15);
+          }
+        } catch (err) {
+          console.error(`❌ Fetch failed for ${name}:`, err.message);
+        }
+      }
+
       // Level 2: Fallback (Caches/Seeds)
-      console.log(`⚠️ SOLO FALLBACK: ${name} (Cache miss or prewarm bypassed)`);
+      console.log(`⚠️ SOLO FALLBACK: ${name} (API fetch failed or quota exhausted)`);
       const fallback = await getFallbackSongs("personalized", name, userId);
       if (fallback && fallback.songs && fallback.songs.length > 0) {
         return fallback.songs;
