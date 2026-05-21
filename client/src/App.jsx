@@ -15,6 +15,7 @@ import PlaylistPage from "./pages/PlaylistPage";
 import { ARTISTS_DATA } from "./data/artists";
 import { useArtists } from "./context/ArtistContext";
 import { saveHistory, getUserData } from "./services/userService";
+import { useToast } from "./context/ToastContext";
 import "./App.css";
 
 const moods = [
@@ -58,6 +59,9 @@ const debounce = (func, delay) => {
 
 function App() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const saveHistoryTimeoutRef = useRef(null);
+  const hasShownQuotaWarningRef = useRef(false);
 
   // 1. Restore queue synchronously on startup from localStorage (Requirement 2)
   const [songs, setSongs] = useState(() => {
@@ -145,6 +149,18 @@ function App() {
   useEffect(() => {
     const savedLiked = localStorage.getItem("likedSongs");
     if (savedLiked) setLikedSongs(JSON.parse(savedLiked));
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.songs && parsed.songs.length > 0) {
+          console.log(`🔌 [QUEUE RESTORATION] Restored queue from localStorage: ${parsed.songs.length} songs, currentIndex: ${parsed.currentIndex ?? 0}`);
+        }
+      }
+    } catch (e) {}
   }, []);
 
   // 2. Persist queue whenever it changes (Throttled/Debounced - Requirement 5)
@@ -244,6 +260,7 @@ function App() {
   };
 
   const handleRefreshList = async () => {
+    console.log("🔄 [REFRESH LIST] Refresh triggered. Source: cachedSongsPool (localStorage/session cache). No API calls.");
     if (!selectedMood) return;
 
     // 1. Reshuffle/reuse locally cached songs whenever possible (Requirement 1)
@@ -323,6 +340,11 @@ function App() {
       const res = await axios.get("http://localhost:5000/api/songs", {
         params: requestParams,
       });
+      const isQuotaSafeMode = res.data.meta?.quotaSafeMode || res.data.quotaSafeMode;
+      if (isQuotaSafeMode && !hasShownQuotaWarningRef.current) {
+        showToast("Using cached music library to preserve API quota.", "info");
+        hasShownQuotaWarningRef.current = true;
+      }
       setSongs(res.data.songs || []);
       setCurrentIndex(0);
       setPlayedIds(new Set());
@@ -364,32 +386,45 @@ function App() {
     
     fetchStats(nowPlaying.videoId);
     
-    // Save to history/recent (prevent duplicate saves)
-    if (lastSavedVideoRef.current !== nowPlaying.videoId) {
-      lastSavedVideoRef.current = nowPlaying.videoId;
-      
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        saveHistory(user.uid, nowPlaying).then(history => {
-          if (history) setRecentSongs(history);
-        }).catch(err => console.log("Failed to save history", err));
-      } else if (sessionId) {
-        axios
-          .post("http://localhost:5000/api/recent", {
-            sessionId,
-            videoId: nowPlaying.videoId,
-            title: nowPlaying.title,
-            channelTitle: nowPlaying.channelTitle,
-          })
-          .then((res) => {
-            setRecentSongs(res.data.recent || []);
-          })
-          .catch((err) => {
-            console.log("Local recent fetch fail:", err);
-          });
-      }
+    // Clear any pending history write timeout
+    if (saveHistoryTimeoutRef.current) {
+      clearTimeout(saveHistoryTimeoutRef.current);
     }
+
+    // Schedule history write after 20 seconds of continuous playback
+    saveHistoryTimeoutRef.current = setTimeout(() => {
+      if (lastSavedVideoRef.current !== nowPlaying.videoId) {
+        lastSavedVideoRef.current = nowPlaying.videoId;
+        
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          saveHistory(user.uid, nowPlaying).then(history => {
+            if (history) setRecentSongs(history);
+          }).catch(err => console.log("Failed to save history", err));
+        } else if (sessionId) {
+          axios
+            .post("http://localhost:5000/api/recent", {
+              sessionId,
+              videoId: nowPlaying.videoId,
+              title: nowPlaying.title,
+              channelTitle: nowPlaying.channelTitle,
+            })
+            .then((res) => {
+              setRecentSongs(res.data.recent || []);
+            })
+            .catch((err) => {
+              console.log("Local recent fetch fail:", err);
+            });
+        }
+      }
+    }, 20000); // 20 seconds debounce
+
+    return () => {
+      if (saveHistoryTimeoutRef.current) {
+        clearTimeout(saveHistoryTimeoutRef.current);
+      }
+    };
   }, [currentIndex, songs, sessionId]);
 
   // ✅ PREFETCH: Trigger at ~75% playback (Auto-DJ queue management)

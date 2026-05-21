@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AddToPlaylistModal from './playlist/AddToPlaylistModal';
+import SongMenu from './SongMenu';
 
 function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQueue, onRefreshList }) {
   const [playlistSong, setPlaylistSong] = useState(null);
@@ -30,11 +31,18 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQu
           <div className="queue-song empty">No songs in queue</div>
         ) : (
           songs.map((song, index) => (
-            <button
+            <div
               key={song.videoId}
-              type="button"
               className={`queue-song ${index === currentIndex ? "active" : ""}`}
               onClick={() => onSelect(index)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(index);
+                }
+              }}
               aria-label={`Play: ${song.title}`}
             >
               <span className="queue-index">{index === currentIndex ? "▶" : String(index + 1).padStart(2, "0")}</span>
@@ -45,16 +53,12 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQu
                 <strong>{song.title}</strong>
                 <p>{song.channelTitle || "YouTube"}</p>
               </div>
-              <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto' }}>
-                <button 
-                  className="queue-action-btn"
-                  onClick={(e) => { e.stopPropagation(); setPlaylistSong(song); }}
-                  title="Add to Playlist"
-                >
-                  📂
-                </button>
-              </div>
-            </button>
+              <SongMenu 
+                song={song}
+                onAddToQueue={onAddToQueue}
+                onAddToPlaylist={setPlaylistSong}
+              />
+            </div>
           ))
         )}
       </div>
@@ -74,24 +78,11 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQu
                   <strong>{song.title || "Untitled track"}</strong>
                   <span>{song.channelTitle || "YouTube"}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto' }}>
-                  {onAddToQueue && (
-                    <button 
-                      className="queue-action-btn"
-                      onClick={(e) => { e.stopPropagation(); onAddToQueue(song); }}
-                      title="Add to Queue"
-                    >
-                      ➕
-                    </button>
-                  )}
-                  <button 
-                    className="queue-action-btn"
-                    onClick={(e) => { e.stopPropagation(); setPlaylistSong(song); }}
-                    title="Add to Playlist"
-                  >
-                    📂
-                  </button>
-                </div>
+                <SongMenu 
+                  song={song}
+                  onAddToQueue={onAddToQueue}
+                  onAddToPlaylist={setPlaylistSong}
+                />
               </div>
             ))
           )}

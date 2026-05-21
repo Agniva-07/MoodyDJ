@@ -4,12 +4,14 @@ import Navbar from "../components/Navbar";
 import ArtistSelection from "../components/ArtistSelection";
 import PlaylistCard from "../components/playlist/PlaylistCard";
 import CreatePlaylistModal from "../components/playlist/CreatePlaylistModal";
+import AddToPlaylistModal from "../components/playlist/AddToPlaylistModal";
+import SongMenu from "../components/SongMenu";
 import { useArtists } from "../context/ArtistContext";
 import { usePlaylist } from "../context/PlaylistContext";
-import { getUserData, getLikedSongs } from "../services/userService";
+import { getUserData, getLikedSongs, syncAndGetHistory } from "../services/userService";
 import { ARTISTS_DATA } from "../data/artists";
 
-function ProfilePage() {
+function ProfilePage({ onAddToQueue }) {
   const navigate = useNavigate();
   const { selectedArtists, setSelectedArtists } = useArtists();
   const { playlists, playlistsLoaded, fetchPlaylists } = usePlaylist();
@@ -19,6 +21,7 @@ function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [showArtistEditor, setShowArtistEditor] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [playlistSong, setPlaylistSong] = useState(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -32,6 +35,11 @@ function ProfilePage() {
 
       try {
         const data = await getUserData(parsedUser.uid);
+        if (data) {
+          const mergedHistory = syncAndGetHistory(parsedUser.uid, data.history || data.recentSongs || []);
+          data.history = mergedHistory;
+          data.recentSongs = mergedHistory;
+        }
         setUserData(data);
         
         // Fetch liked songs
@@ -100,7 +108,7 @@ function ProfilePage() {
   const history = userData?.recentSongs || userData?.history || [];
   const liked = likedSongsData || [];
   const disliked = userData?.disliked || [];
-  const totalSongsPlayed = history.length;
+  const totalSongsPlayed = userData?.totalSongsPlayed || history.length;
   const totalListeningMinutes = userData?.totalListeningTime
     ? Math.round(userData.totalListeningTime / 60)
     : 0;
@@ -230,12 +238,17 @@ function ProfilePage() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.8rem" }}>
               {liked.slice(0, 10).map((song) => (
-                <div key={song.videoId} style={{ display: "flex", alignItems: "center", gap: "1rem", background: "rgba(255,255,255,0.05)", padding: "0.8rem", borderRadius: "8px" }}>
-                  <img src={song.thumbnail} alt="" style={{ width: "60px", height: "45px", objectFit: "cover", borderRadius: "4px" }} />
+                <div key={song.videoId} className="liked-song-card" style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.05)", borderRadius: "8px", position: "relative" }}>
+                  <img src={song.thumbnail} alt="" style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "8px" }} />
                   <div style={{ flex: 1, overflow: "hidden" }}>
-                    <h4 style={{ margin: 0, color: "#e0f2fe", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</h4>
-                    <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.8rem" }}>{song.channelTitle}</p>
+                    <h4 style={{ margin: 0, color: "#e0f2fe", fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</h4>
+                    <p style={{ margin: "0.1rem 0 0", color: "#94a3b8", fontSize: "0.7rem" }}>{song.channelTitle}</p>
                   </div>
+                  <SongMenu 
+                    song={song}
+                    onAddToQueue={onAddToQueue}
+                    onAddToPlaylist={setPlaylistSong}
+                  />
                 </div>
               ))}
               {liked.length > 10 && (
@@ -257,18 +270,23 @@ function ProfilePage() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.8rem" }}>
               {history.slice(0, 10).map((song, index) => (
-                <div key={`${song.videoId}-${index}`} style={{ display: "flex", alignItems: "center", gap: "1rem", background: "rgba(255,255,255,0.05)", padding: "0.8rem", borderRadius: "8px" }}>
+                <div key={`${song.videoId}-${index}`} className="recent-item" style={{ display: "flex", alignItems: "center", position: "relative" }}>
                   {song.thumbnail ? (
-                    <img src={song.thumbnail} alt="" style={{ width: "60px", height: "45px", objectFit: "cover", borderRadius: "4px" }} />
+                    <img src={song.thumbnail} alt="" className="recent-item__thumb" />
                   ) : (
-                    <div style={{ width: "60px", height: "45px", background: "rgba(147,51,234,0.3)", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ color: "#e0f2fe", fontSize: "1.5rem" }}>♪</span>
+                    <div className="recent-item__thumb">
+                      <span style={{ color: "#e0f2fe", fontSize: "1.2rem" }}>♪</span>
                     </div>
                   )}
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    <h4 style={{ margin: 0, color: "#e0f2fe", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</h4>
-                    <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.8rem" }}>{song.channelTitle}</p>
+                  <div className="recent-item__copy" style={{ flex: 1 }}>
+                    <strong style={{ color: "#e0f2fe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{song.title}</strong>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{song.channelTitle}</span>
                   </div>
+                  <SongMenu 
+                    song={song}
+                    onAddToQueue={onAddToQueue}
+                    onAddToPlaylist={setPlaylistSong}
+                  />
                 </div>
               ))}
               {history.length > 10 && (
@@ -295,6 +313,11 @@ function ProfilePage() {
       <CreatePlaylistModal 
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+      />
+      <AddToPlaylistModal 
+        isOpen={!!playlistSong} 
+        song={playlistSong} 
+        onClose={() => setPlaylistSong(null)} 
       />
     </div>
   );

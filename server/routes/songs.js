@@ -114,6 +114,20 @@ const getFallbackSongs = async (type, query, userId) => {
     }
   }
 
+  // Level 0.5 — searchCache check (persistent search results)
+  if (query) {
+    const cacheKey = query.toLowerCase().trim();
+    for (const [key, cached] of searchCache.entries()) {
+      if (key.includes(cacheKey) || cacheKey.includes(key)) {
+        if (cached && cached.data && cached.data.length > 0) {
+          console.log(`♻️ LEVEL 0.5 HIT: searchCache key '${key}' has ${cached.data.length} songs`);
+          const shuffled = [...cached.data].sort(() => Math.random() - 0.5).slice(0, 15);
+          return { songs: shuffled, source: "cache", quotaSafeMode: true };
+        }
+      }
+    }
+  }
+
   // Level 1 — artistCache check
   if (query) {
     const qLower = query.toLowerCase();
@@ -288,6 +302,89 @@ const moodQueryRotation = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const SCORE_CACHE_TTL = 60 * 60 * 1000; // ✅ FIXED: score cache TTL 60 mins
 const SESSION_TTL = 30 * 60 * 1000; // ✅ FIXED: session TTL 30 mins
+
+// ============================================================
+// PERSISTENT BACKEND CACHE IMPLEMENTATION
+// ============================================================
+const fs = require("fs");
+const path = require("path");
+const CACHE_FILE = path.join(__dirname, "../cache.json");
+
+function loadPersistentCache() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+      
+      let searchCount = 0;
+      let artistCount = 0;
+      let scoreCount = 0;
+      let blendCount = 0;
+
+      if (data.searchCache && Array.isArray(data.searchCache)) {
+        data.searchCache.forEach(([key, val]) => {
+          if (Date.now() - val.timestamp < CACHE_TTL) {
+            searchCache.set(key, val);
+            searchCount++;
+          }
+        });
+      }
+      if (data.artistCache && Array.isArray(data.artistCache)) {
+        data.artistCache.forEach(([key, val]) => {
+          if (Date.now() - val.timestamp < ARTIST_CACHE_TTL) {
+            artistCache.set(key, val);
+            artistCount++;
+          }
+        });
+      }
+      if (data.scoredVideosCache && Array.isArray(data.scoredVideosCache)) {
+        data.scoredVideosCache.forEach(([key, val]) => {
+          if (Date.now() - val.timestamp < SCORE_CACHE_TTL) {
+            scoredVideosCache.set(key, val);
+            scoreCount++;
+          }
+        });
+      }
+      if (data.blendCache && Array.isArray(data.blendCache)) {
+        data.blendCache.forEach(([key, val]) => {
+          if (Date.now() - val.timestamp < CACHE_TTL) {
+            blendCache.set(key, val);
+            blendCount++;
+          }
+        });
+      }
+      
+      console.log(`💾 [PERSISTENT CACHE] Loaded: ${searchCount} searches, ${artistCount} artists, ${scoreCount} scores, ${blendCount} blends`);
+    } else {
+      console.log("💾 [PERSISTENT CACHE] No cache file found, starting fresh.");
+    }
+  } catch (err) {
+    console.error("💾 [PERSISTENT CACHE] Error loading cache:", err.message);
+  }
+}
+
+let saveTimeout = null;
+function savePersistentCache() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  
+  saveTimeout = setTimeout(() => {
+    try {
+      const data = {
+        searchCache: Array.from(searchCache.entries()),
+        artistCache: Array.from(artistCache.entries()),
+        scoredVideosCache: Array.from(scoredVideosCache.entries()),
+        blendCache: Array.from(blendCache.entries())
+      };
+      
+      fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2), "utf8");
+      console.log("💾 [PERSISTENT CACHE] Saved cache to file successfully.");
+    } catch (err) {
+      console.error("💾 [PERSISTENT CACHE] Error saving cache:", err.message);
+    }
+  }, 5000);
+}
+
+// Load cache on startup
+loadPersistentCache();
 const QUEUE_MIN_SIZE = 5;
 const QUEUE_PREFILL_SIZE = 20;
 const MAX_PLAYED_HISTORY = 50;
@@ -468,6 +565,7 @@ const fetchSearchPages = async (query, maxPages = SEARCH_MAX_PAGES, maxResults =
       throw { name: "QuotaSafeFallback", fallback };
     }
 
+    console.log(`📡 [YOUTUBE API SEARCH] Fetching page ${page + 1}/${maxPages} for query "${query}". Quota Used: 100. Total units: ${quotaTracker.unitsUsed + 100}`);
     const response = await axios.get("https://www.googleapis.com/youtube/v3/search", {
       params: {
         part: "snippet",
@@ -612,6 +710,8 @@ const scoreVideos = async (videoIds) => {
 
     let fetchedScored = [];
     if (idsToFetch.length > 0) {
+      console.log(`📡 [YOUTUBE API VIDEOS] Querying details for ${idsToFetch.length} videos. Quota Used: 1. Total units: ${quotaTracker.unitsUsed + 1}`);
+      trackQuotaUsage(1);
       const response = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
         params: {
           part: "statistics,contentDetails,snippet",
@@ -667,6 +767,7 @@ const scoreVideos = async (videoIds) => {
         };
 
         scoredVideosCache.set(video.id, { data: scoreData, timestamp: now });
+        savePersistentCache();
         acc.push(scoreData);
         return acc;
       }, []);
@@ -810,12 +911,12 @@ const searchMoodVideos = async (mood, query, options = { allowSearch: true, isPe
   if (searchCache.has(cacheKey)) {
     const { data, timestamp } = searchCache.get(cacheKey);
     if (Date.now() - timestamp < CACHE_TTL) {
-      console.log("📦 CACHE HIT:", mood);
+      console.log(`📦 [CACHE HIT] Key: "${cacheKey}" for mood "${mood}". Source: memory/persistent. Age: ${Math.round((Date.now() - timestamp) / 1000)}s`);
       return { videos: data, source: "cache" };
     }
   }
 
-  console.log("📦 CACHE MISS:", mood);
+  console.log(`📦 [CACHE MISS] Key: "${cacheKey}" for mood "${mood}". Triggering search.`);
   if (!allowSearch) {
     // ✅ FIXED: Quota protection path for prefetch
     console.log("🚫 SEARCH BLOCKED (PREFETCH)");
@@ -828,7 +929,7 @@ const searchMoodVideos = async (mood, query, options = { allowSearch: true, isPe
     if (searchCache.has(cacheKey)) {
       const cached = searchCache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        console.log("📦 CACHE HIT:", mood);
+        console.log(`📦 [CACHE HIT] Key: "${cacheKey}" for mood "${mood}" (after lock resolve).`);
         return { videos: cached.data, source: "cache" };
       }
     }
@@ -861,6 +962,7 @@ const searchMoodVideos = async (mood, query, options = { allowSearch: true, isPe
         data: videos,
         timestamp: Date.now(),
       });
+      savePersistentCache();
 
       console.log("📊 RESULTS:", videos.length);
       return { videos, source: "fresh" };
@@ -1522,6 +1624,7 @@ router.get("/songs", async (req, res) => {
         videos: scoredBlended,
         timestamp: Date.now()
       });
+      savePersistentCache();
     }
 
     if (sessionId) {
@@ -1574,8 +1677,22 @@ router.get("/songs", async (req, res) => {
         }
       });
     }
-    console.error("❌ Error in /songs:", error.message);
-    return res.status(500).json({ error: "Something went wrong" });
+    console.error("❌ Error in /songs (performing fallback):", error.message);
+    try {
+      const fallback = await getFallbackSongs(secondaryMood ? "blend" : "mood", primaryMood, userId);
+      return res.json({
+        songs: fallback.songs,
+        meta: {
+          source: fallback.source,
+          quotaSafeMode: true,
+          quotaSafe: true,
+          apiError: true
+        }
+      });
+    } catch (fallbackError) {
+      console.error("❌ Fallback search failed too in /songs:", fallbackError.message);
+      return res.status(500).json({ error: "Search failed and fallback unavailable" });
+    }
   }
 });
 
@@ -2256,6 +2373,7 @@ router.post("/prewarm-artists", async (req, res) => {
           timestamp: now,
           offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
         });
+        savePersistentCache();
         console.log(`✅ Prewarmed artist: ${name} (${artistVideos.length} songs)`);
       } catch (err) {
         if (err.name === "QuotaSafeFallback") {
@@ -2339,6 +2457,7 @@ router.post("/solo-songs", async (req, res) => {
               timestamp: Date.now(),
               offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
             });
+            savePersistentCache();
             console.log(`✅ Fetched and cached missing artist: ${name} (${artistVideos.length} songs)`);
             return shuffleResults(artistVideos).slice(0, 15);
           }
@@ -2417,8 +2536,23 @@ router.post("/solo-songs", async (req, res) => {
         }
       });
     }
-    console.error("❌ /solo-songs failed:", error);
-    res.status(500).json({ error: "Failed to generate solo mix logic execution" });
+    console.error("❌ /solo-songs failed, fallback triggered:", error.message);
+    try {
+      const fallbackQuery = (selectedArtists && selectedArtists.length > 0) ? selectedArtists[0] : "personalized";
+      const fallback = await getFallbackSongs("personalized", fallbackQuery, userId);
+      return res.json({
+        songs: fallback.songs,
+        meta: {
+          source: fallback.source,
+          quotaSafeMode: true,
+          quotaSafe: true,
+          apiError: true
+        }
+      });
+    } catch (fallbackError) {
+      console.error("❌ Fallback search failed too in /solo-songs:", fallbackError.message);
+      return res.status(500).json({ error: "Failed to generate solo mix logic execution and fallback unavailable" });
+    }
   }
 });
 

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePlaylist } from '../context/PlaylistContext';
 import { useToast } from '../context/ToastContext';
+import AddToPlaylistModal from '../components/playlist/AddToPlaylistModal';
+import SongMenu from '../components/SongMenu';
 import '../components/playlist/Playlist.css';
 
 const PlaylistPage = ({ onPlaySongs, onAddToQueue }) => {
@@ -24,6 +26,7 @@ const PlaylistPage = ({ onPlaySongs, onAddToQueue }) => {
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [playlistSong, setPlaylistSong] = useState(null);
 
   useEffect(() => {
     if (!playlistsLoaded) {
@@ -202,7 +205,12 @@ const PlaylistPage = ({ onPlaySongs, onAddToQueue }) => {
             </div>
           ) : (
             songs.map((song, index) => (
-              <div key={`${song.videoId}-${index}`} className="playlist-song-item">
+              <div 
+                key={`${song.videoId}-${index}`} 
+                className="playlist-song-item"
+                onClick={() => handlePlaySong(index)}
+                style={{ cursor: 'pointer' }}
+              >
                 <div style={{ color: '#94a3b8', width: '20px', textAlign: 'center', fontSize: '0.85rem' }}>
                   {index + 1}
                 </div>
@@ -220,17 +228,16 @@ const PlaylistPage = ({ onPlaySongs, onAddToQueue }) => {
                   <p>{song.channelTitle}</p>
                 </div>
                 
-                <div className="playlist-song-actions">
-                  <button className="song-action-btn" onClick={() => handlePlaySong(index)} title="Play">
-                    ▶
-                  </button>
-                  <button className="song-action-btn" onClick={() => { onAddToQueue(song); showToast("Added to queue", "success"); }} title="Add to queue">
-                    ➕
-                  </button>
-                  <button className="song-action-btn remove" onClick={() => removeSongFromPlaylist(playlist.id, song.videoId)} title="Remove from playlist">
-                    ✕
-                  </button>
-                </div>
+                <SongMenu 
+                  song={song}
+                  onAddToQueue={(song) => {
+                    onAddToQueue(song);
+                    showToast("Added to queue", "success");
+                  }}
+                  onAddToPlaylist={setPlaylistSong}
+                  onRemove={() => removeSongFromPlaylist(playlist.id, song.videoId)}
+                  removeLabel="Remove from Playlist"
+                />
               </div>
             ))
           )}
@@ -243,6 +250,11 @@ const PlaylistPage = ({ onPlaySongs, onAddToQueue }) => {
         </div>
 
       </section>
+      <AddToPlaylistModal 
+        isOpen={!!playlistSong} 
+        song={playlistSong} 
+        onClose={() => setPlaylistSong(null)} 
+      />
     </div>
   );
 };

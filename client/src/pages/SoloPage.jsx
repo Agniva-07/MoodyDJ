@@ -6,6 +6,7 @@ import PlayerCard from "../components/PlayerCard";
 import QueuePanel from "../components/QueuePanel";
 import { saveHistory, addListeningTime } from "../services/userService";
 import { useArtists } from "../context/ArtistContext";
+import { useToast } from "../context/ToastContext";
 import { db } from "../firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -63,8 +64,11 @@ function SoloPage() {
 
   const playerRef = useRef(null);
   const lastSavedVideoRef = useRef(null);
+  const saveHistoryTimeoutRef = useRef(null);
+  const hasShownQuotaWarningRef = useRef(false);
 
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { selectedArtists, getArtistNames, artistsLoaded } = useArtists();
 
   const getCurrentUserId = () => {
@@ -79,6 +83,16 @@ function SoloPage() {
   useEffect(() => {
     const existing = localStorage.getItem("sessionId");
     if (existing) setSessionId(existing);
+    
+    try {
+      const saved = localStorage.getItem("moodydj_solo_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.songs && parsed.songs.length > 0) {
+          console.log(`🔌 [QUEUE RESTORATION] Restored solo queue from localStorage: ${parsed.songs.length} songs, currentIndex: ${parsed.currentIndex ?? 0}`);
+        }
+      }
+    } catch (e) {}
   }, []);
 
   const handleLike = async () => {
@@ -166,6 +180,12 @@ function SoloPage() {
           userId: getCurrentUserId(),
         });
 
+        const isQuotaSafeMode = data.meta?.quotaSafeMode || data.quotaSafeMode;
+        if (isQuotaSafeMode && !hasShownQuotaWarningRef.current) {
+          showToast("Using cached music library to preserve API quota.", "info");
+          hasShownQuotaWarningRef.current = true;
+        }
+
         if (data.songs && data.songs.length > 0) {
           setSongs(deduplicateSongs(data.songs));
           setCurrentIndex(0);
@@ -227,20 +247,34 @@ function SoloPage() {
 
     fetchStats(currentSong.videoId);
 
-    if (lastSavedVideoRef.current !== currentSong.videoId) {
-      lastSavedVideoRef.current = currentSong.videoId;
-
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-
-        saveHistory(user.uid, currentSong)
-          .then((history) => {
-            if (history) setRecentSongs(history);
-          })
-          .catch(console.error);
-      }
+    // Clear any pending history write timeout
+    if (saveHistoryTimeoutRef.current) {
+      clearTimeout(saveHistoryTimeoutRef.current);
     }
+
+    // Schedule history write after 20 seconds of continuous playback
+    saveHistoryTimeoutRef.current = setTimeout(() => {
+      if (lastSavedVideoRef.current !== currentSong.videoId) {
+        lastSavedVideoRef.current = currentSong.videoId;
+
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+
+          saveHistory(user.uid, currentSong)
+            .then((history) => {
+              if (history) setRecentSongs(history);
+            })
+            .catch(console.error);
+        }
+      }
+    }, 20000); // 20 seconds debounce
+
+    return () => {
+      if (saveHistoryTimeoutRef.current) {
+        clearTimeout(saveHistoryTimeoutRef.current);
+      }
+    };
   }, [currentIndex, songs]);
 
   // Disabled automatic queue refill to adhere to new requirement:
@@ -274,41 +308,39 @@ function SoloPage() {
   };
 
   const handleRefreshList = async () => {
-    // 1. Reshuffle/reuse locally cached songs whenever possible (Requirement 1)
-    if (songs && songs.length > 1) {
-      const currentSong = songs[currentIndex];
-      const remainingSongs = songs.filter((_, idx) => idx !== currentIndex);
-      
-      // Fisher-Yates shuffle algorithm
-      const shuffledRemaining = [...remainingSongs];
-      for (let i = shuffledRemaining.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledRemaining[i], shuffledRemaining[j]] = [shuffledRemaining[j], shuffledRemaining[i]];
-      }
-      
-      const newSongs = [currentSong, ...shuffledRemaining];
-      setSongs(newSongs);
-      setCurrentIndex(0);
-      return;
-    }
-
-    // Fallback: If queue is somehow empty, fetch from API
+    console.log("🔄 [REFRESH LIST] Solo Mode refresh triggered. Source: cachedSongsPool (localStorage/session cache). No API calls.");
+    // 1. Zero-network refresh using master cachedSongsPool
+    let pool = songs;
     try {
-      setLoading(true);
-      const artistNames = getArtistNames();
-      const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
-        selectedArtists: artistNames,
-        userId: getCurrentUserId(),
-      });
-      if (data.songs && data.songs.length > 0) {
-        setSongs(deduplicateSongs(data.songs));
-        setCurrentIndex(0);
+      const stored = localStorage.getItem("moodydj_cached_pool");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 10) pool = parsed;
       }
-    } catch (err) {
-      console.error("Refresh list failed:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
+
+    if (!pool || pool.length === 0) return;
+
+    // 2. Preserve queue stability: Keep songs up to currentIndex intact
+    setSongs(prev => {
+      const safeIndex = currentIndex >= 0 && currentIndex < prev.length ? currentIndex : 0;
+      const beforeAndCurrent = prev.slice(0, safeIndex + 1);
+      
+      // Filter out songs that are already in the kept portion of the queue
+      const keptIds = new Set(beforeAndCurrent.map(s => s.videoId));
+      const remainingPool = pool.filter(s => !keptIds.has(s.videoId));
+      
+      // Fisher-Yates shuffle the remaining pool
+      const shuffled = [...remainingPool];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      // Append a fresh list (e.g. 40 songs) after the current song
+      const newList = shuffled.slice(0, 40);
+      return [...beforeAndCurrent, ...newList];
+    });
   };
 
   const fetchStats = async (videoId) => {
@@ -373,6 +405,8 @@ function SoloPage() {
           currentIndex={currentIndex}
           onSelect={setCurrentIndex}
           recentSongs={recentSongs}
+          onAddToQueue={handleAddToQueue}
+          onRefreshList={handleRefreshList}
         />
 
       </main>
