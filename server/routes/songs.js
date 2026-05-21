@@ -2422,4 +2422,44 @@ router.post("/solo-songs", async (req, res) => {
   }
 });
 
+// ============================================================
+// ENDPOINT 8: Batch song metadata resolution (cheap API)
+// ============================================================
+router.post("/songs/metadata", async (req, res) => {
+  try {
+    const { videoIds } = req.body;
+    if (!videoIds || !Array.isArray(videoIds) || videoIds.length === 0) {
+      return res.json({ songs: [] });
+    }
+
+    const uniqueIds = [...new Set(videoIds)].slice(0, 50); // Limit to 50 per request
+
+    if (!isQuotaSafe(1)) {
+      console.log("🔴 Quota safety fallback for /songs/metadata");
+      return res.json({ songs: [] });
+    }
+
+    const response = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+      params: {
+        part: "snippet,contentDetails",
+        id: uniqueIds.join(","),
+        key: process.env.YOUTUBE_API_KEY,
+      },
+    });
+
+    const songs = (response.data.items || []).map(video => ({
+      videoId: video.id,
+      title: video.snippet.title,
+      channelTitle: video.snippet.channelTitle,
+      thumbnail: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url || "",
+      duration: parseDuration(video.contentDetails?.duration || "")
+    }));
+
+    return res.json({ songs });
+  } catch (error) {
+    console.error("❌ Metadata resolution failed:", error.message);
+    res.status(500).json({ error: "Failed to resolve metadata" });
+  }
+});
+
 module.exports = router;

@@ -19,9 +19,38 @@ const deduplicateSongs = (songs) => {
   return Array.from(map.values());
 };
 
+const debounce = (func, delay) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => func(...args), delay);
+  };
+};
+
 function SoloPage() {
-  const [songs, setSongs] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // 1. Restore queue synchronously on startup from localStorage (Requirement 2)
+  const [songs, setSongs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_solo_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.songs && parsed.songs.length > 0) return parsed.songs;
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_solo_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentIndex !== undefined) return parsed.currentIndex;
+      }
+    } catch (e) {}
+    return 0;
+  });
+
   const [stats, setStats] = useState(null);
   const [shuffle, setShuffle] = useState(false);
   const [recentSongs, setRecentSongs] = useState([]);
@@ -95,6 +124,37 @@ function SoloPage() {
       return;
     }
 
+    const currentArtistsStr = JSON.stringify(selectedArtists);
+    
+    // Check if the current songs in state match the selected artists.
+    // If they do, we don't need to fetch!
+    let isValid = false;
+    try {
+      const savedQueue = localStorage.getItem("moodydj_solo_queue");
+      if (savedQueue) {
+        const parsed = JSON.parse(savedQueue);
+        if (parsed.songs && parsed.songs.length > 0 && parsed.selectedArtistsStr === currentArtistsStr) {
+          isValid = true;
+        }
+      }
+    } catch (e) {}
+
+    if (isValid) {
+      setLoading(false);
+      
+      // Fetch initial history
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        getDoc(doc(db, "users", user.uid)).then(snap => {
+          if (snap.exists() && snap.data().history) {
+            setRecentSongs(snap.data().history);
+          }
+        }).catch(err => console.log("Failed to load initial history:", err));
+      }
+      return;
+    }
+
     const fetchSoloMix = async () => {
       try {
         setLoading(true);
@@ -108,6 +168,7 @@ function SoloPage() {
 
         if (data.songs && data.songs.length > 0) {
           setSongs(deduplicateSongs(data.songs));
+          setCurrentIndex(0);
         } else {
           setError("No songs found.");
         }
@@ -133,6 +194,27 @@ function SoloPage() {
     }
 
   }, [artistsLoaded, selectedArtists, navigate, getArtistNames]);
+
+  // 2. Persist queue whenever it changes (Throttled/Debounced - Requirement 5)
+  const saveQueueDebounced = useRef(
+    debounce((queueData) => {
+      try {
+        localStorage.setItem("moodydj_solo_queue", JSON.stringify(queueData));
+      } catch (e) {
+        console.error("Failed to persist solo queue:", e);
+      }
+    }, 1000)
+  ).current;
+
+  useEffect(() => {
+    if (songs.length > 0 && selectedArtists.length > 0) {
+      saveQueueDebounced({
+        songs,
+        currentIndex,
+        selectedArtistsStr: JSON.stringify(selectedArtists)
+      });
+    }
+  }, [songs, currentIndex, selectedArtists]);
 
   // 🎵 HANDLE SONG CHANGE
   useEffect(() => {
@@ -161,39 +243,10 @@ function SoloPage() {
     }
   }, [currentIndex, songs]);
 
-  // Queue refill: when fewer than 5 songs remain, fetch more from cache
-  useEffect(() => {
-    if (!songs.length || refilling) return;
-    const remaining = songs.length - currentIndex;
-    if (remaining > 5) return;
-
-    const refillQueue = async () => {
-      setRefilling(true);
-      try {
-        const artistNames = getArtistNames();
-        const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
-          selectedArtists: artistNames,
-          userId: getCurrentUserId(),
-        });
-        if (data.songs && data.songs.length > 0) {
-          setSongs(prev => {
-            const existingIds = new Set(prev.map(s => s.videoId));
-            const newSongs = data.songs.filter(s => !existingIds.has(s.videoId));
-            if (newSongs.length > 0) {
-              console.log(`📡 Refilled queue with ${newSongs.length} songs`);
-              return [...prev, ...newSongs];
-            }
-            return prev;
-          });
-        }
-      } catch (err) {
-        console.error("Queue refill failed:", err);
-      } finally {
-        setRefilling(false);
-      }
-    };
-    refillQueue();
-  }, [currentIndex, songs.length, refilling]);
+  // Disabled automatic queue refill to adhere to new requirement:
+  // "Automatic refreshes should NOT happen anymore"
+  // "Queue/list regeneration should happen ONLY on explicit user action"
+  /* useEffect(() => { ... refill logic ... }, [currentIndex, songs.length, refilling]); */
 
   const handleNextSong = () => {
     if (!songs.length) return;
@@ -209,6 +262,53 @@ function SoloPage() {
     if (!songs.length) return;
 
     setCurrentIndex((currentIndex - 1 + songs.length) % songs.length);
+  };
+
+  const handleAddToQueue = (song) => {
+    setSongs(prev => {
+      if (prev.length > 0 && prev[prev.length - 1].videoId === song.videoId) {
+        return prev;
+      }
+      return [...prev, song];
+    });
+  };
+
+  const handleRefreshList = async () => {
+    // 1. Reshuffle/reuse locally cached songs whenever possible (Requirement 1)
+    if (songs && songs.length > 1) {
+      const currentSong = songs[currentIndex];
+      const remainingSongs = songs.filter((_, idx) => idx !== currentIndex);
+      
+      // Fisher-Yates shuffle algorithm
+      const shuffledRemaining = [...remainingSongs];
+      for (let i = shuffledRemaining.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledRemaining[i], shuffledRemaining[j]] = [shuffledRemaining[j], shuffledRemaining[i]];
+      }
+      
+      const newSongs = [currentSong, ...shuffledRemaining];
+      setSongs(newSongs);
+      setCurrentIndex(0);
+      return;
+    }
+
+    // Fallback: If queue is somehow empty, fetch from API
+    try {
+      setLoading(true);
+      const artistNames = getArtistNames();
+      const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
+        selectedArtists: artistNames,
+        userId: getCurrentUserId(),
+      });
+      if (data.songs && data.songs.length > 0) {
+        setSongs(deduplicateSongs(data.songs));
+        setCurrentIndex(0);
+      }
+    } catch (err) {
+      console.error("Refresh list failed:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchStats = async (videoId) => {
@@ -263,6 +363,8 @@ function SoloPage() {
           likedKeywords={[]}
           dislikedKeywords={[]}
           playerRef={playerRef}
+          onAddToQueue={handleAddToQueue}
+          onRefreshList={handleRefreshList}
         />
 
         {/* 📜 QUEUE */}

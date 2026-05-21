@@ -26,6 +26,8 @@ function PlayerPage({
   liked,
   disliked,
   playerRef,
+  onAddToQueue,
+  onRefreshList,
 }) {
   const prefersReducedMotion = useReducedMotion();
 
@@ -56,6 +58,7 @@ function PlayerPage({
             liked={liked}
             disliked={disliked}
             playerRef={playerRef}
+            onAddToQueue={onAddToQueue}
           />
         </motion.div>
 
@@ -70,6 +73,8 @@ function PlayerPage({
             currentIndex={currentIndex}
             onSelect={onSelectSong}
             recentSongs={recentSongs}
+            onAddToQueue={onAddToQueue}
+            onRefreshList={onRefreshList}
           />
         </motion.div>
       </main>

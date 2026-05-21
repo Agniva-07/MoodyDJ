@@ -2,18 +2,23 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import ArtistSelection from "../components/ArtistSelection";
+import PlaylistCard from "../components/playlist/PlaylistCard";
+import CreatePlaylistModal from "../components/playlist/CreatePlaylistModal";
 import { useArtists } from "../context/ArtistContext";
+import { usePlaylist } from "../context/PlaylistContext";
 import { getUserData, getLikedSongs } from "../services/userService";
 import { ARTISTS_DATA } from "../data/artists";
 
 function ProfilePage() {
   const navigate = useNavigate();
   const { selectedArtists, setSelectedArtists } = useArtists();
+  const { playlists, playlistsLoaded, fetchPlaylists } = usePlaylist();
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [likedSongsData, setLikedSongsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArtistEditor, setShowArtistEditor] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -32,6 +37,11 @@ function ProfilePage() {
         // Fetch liked songs
         const likedSongs = await getLikedSongs(parsedUser.uid);
         setLikedSongsData(likedSongs);
+
+        // Fetch playlists
+        if (!playlistsLoaded) {
+          fetchPlaylists();
+        }
       } catch (err) {
         console.error("Failed to load profile:", err);
       } finally {
@@ -39,7 +49,7 @@ function ProfilePage() {
       }
     };
     loadProfile();
-  }, [navigate]);
+  }, [navigate, playlistsLoaded, fetchPlaylists]);
 
   const handleArtistUpdate = (artists) => {
     setSelectedArtists(artists);
@@ -184,6 +194,32 @@ function ProfilePage() {
           )}
         </div>
 
+        {/* My Playlists */}
+        <div className="player-card glass" style={{ maxWidth: "700px", margin: "0 auto 2rem", padding: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
+            <h3 style={{ color: "#e0f2fe", margin: 0, fontSize: "1.2rem" }}>📂 My Playlists</h3>
+            <button 
+              className="blend-start-btn" 
+              style={{ padding: "0.4rem 1rem", fontSize: "0.85rem" }}
+              onClick={() => setShowCreateModal(true)}
+            >
+              + Create Playlist
+            </button>
+          </div>
+          
+          {!playlistsLoaded ? (
+            <p style={{ color: "#94a3b8" }}>Loading playlists...</p>
+          ) : playlists.length === 0 ? (
+            <p style={{ color: "#94a3b8" }}>No playlists yet. Create one to start saving your favorite mixes!</p>
+          ) : (
+            <div className="playlist-grid">
+              {playlists.map(p => (
+                <PlaylistCard key={p.id} playlist={p} />
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Liked Songs Library */}
         <div className="player-card glass" style={{ maxWidth: "700px", margin: "0 auto 2rem", padding: "2rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
@@ -255,6 +291,11 @@ function ProfilePage() {
           </button>
         </div>
       </section>
+
+      <CreatePlaylistModal 
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   );
 }

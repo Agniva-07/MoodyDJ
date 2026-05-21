@@ -11,6 +11,7 @@ import ArtistSelection from "./components/ArtistSelection";
 import DailyArtistPrompt from "./components/DailyArtistPrompt";
 import ModeSelection from "./pages/ModeSelection";
 import SoloPage from "./pages/SoloPage";
+import PlaylistPage from "./pages/PlaylistPage";
 import { ARTISTS_DATA } from "./data/artists";
 import { useArtists } from "./context/ArtistContext";
 import { saveHistory, getUserData } from "./services/userService";
@@ -47,17 +48,78 @@ const getCurrentUserId = () => {
   }
 };
 
+const debounce = (func, delay) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => func(...args), delay);
+  };
+};
+
 function App() {
   const navigate = useNavigate();
-  const [selectedMood, setSelectedMood] = useState(null);
-  const [blendConfig, setBlendConfig] = useState({
-    mood1: "chill",
-    mood2: "focus",
-    weight1: 60,
-    weight2: 40,
+
+  // 1. Restore queue synchronously on startup from localStorage (Requirement 2)
+  const [songs, setSongs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.songs && parsed.songs.length > 0) return parsed.songs;
+      }
+    } catch (e) {}
+    return [];
   });
-  const [songs, setSongs] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentIndex !== undefined) return parsed.currentIndex;
+      }
+    } catch (e) {}
+    return 0;
+  });
+
+  const [selectedMood, setSelectedMood] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedMood) return parsed.selectedMood;
+      }
+    } catch (e) {}
+    return null;
+  });
+
+  const [blendConfig, setBlendConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.blendConfig) return parsed.blendConfig;
+      }
+    } catch (e) {}
+    return {
+      mood1: "chill",
+      mood2: "focus",
+      weight1: 60,
+      weight2: 40,
+    };
+  });
+
+  const [sessionId, setSessionId] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_app_queue");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.sessionId) return parsed.sessionId;
+      }
+    } catch (e) {}
+    return getOrCreateSessionId();
+  });
+
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [playedIds, setPlayedIds] = useState(new Set());
@@ -67,7 +129,6 @@ function App() {
   const [likedKeywords, setLikedKeywords] = useState([]);
   const [dislikedKeywords, setDislikedKeywords] = useState([]);
   const [recentSongs, setRecentSongs] = useState([]);
-  const [sessionId, setSessionId] = useState("");
   const [autoPlay] = useState(true);
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
@@ -82,10 +143,32 @@ function App() {
   const [isPersonalized, setIsPersonalized] = useState(false);
 
   useEffect(() => {
-    setSessionId(getOrCreateSessionId());
     const savedLiked = localStorage.getItem("likedSongs");
     if (savedLiked) setLikedSongs(JSON.parse(savedLiked));
   }, []);
+
+  // 2. Persist queue whenever it changes (Throttled/Debounced - Requirement 5)
+  const saveQueueDebounced = useRef(
+    debounce((queueData) => {
+      try {
+        localStorage.setItem("moodydj_app_queue", JSON.stringify(queueData));
+      } catch (e) {
+        console.error("Failed to persist app queue:", e);
+      }
+    }, 1000)
+  ).current;
+
+  useEffect(() => {
+    if (songs.length > 0) {
+      saveQueueDebounced({
+        songs,
+        currentIndex,
+        sessionId,
+        selectedMood,
+        blendConfig
+      });
+    }
+  }, [songs, currentIndex, sessionId, selectedMood, blendConfig]);
 
   // Determine if artist selection should show based on context load
   useEffect(() => {
@@ -148,6 +231,57 @@ function App() {
     setPlayedIds((prev) => new Set(prev).add(songs[currentIndex].videoId));
     if (playedIds.size === songs.length - 1) setPlayedIds(new Set());
     setCurrentIndex(nextIndex);
+  };
+
+  const handleAddToQueue = (song) => {
+    setSongs(prev => {
+      // Prevent consecutive duplicates
+      if (prev.length > 0 && prev[prev.length - 1].videoId === song.videoId) {
+        return prev; 
+      }
+      return [...prev, song];
+    });
+  };
+
+  const handleRefreshList = async () => {
+    if (!selectedMood) return;
+
+    // 1. Reshuffle/reuse locally cached songs whenever possible (Requirement 1)
+    if (songs && songs.length > 1) {
+      const currentSong = songs[currentIndex];
+      const remainingSongs = songs.filter((_, idx) => idx !== currentIndex);
+      
+      // Fisher-Yates shuffle algorithm
+      const shuffledRemaining = [...remainingSongs];
+      for (let i = shuffledRemaining.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledRemaining[i], shuffledRemaining[j]] = [shuffledRemaining[j], shuffledRemaining[i]];
+      }
+      
+      const newSongs = [currentSong, ...shuffledRemaining];
+      setSongs(newSongs);
+      setCurrentIndex(0);
+      setPlayedIds(new Set([currentSong.videoId]));
+      return;
+    }
+
+    // Fallback: If queue is somehow empty, fetch from API
+    try {
+      setLoading(true);
+      const requestParams = buildMoodRequestParams(blendConfig, { likedKeywords, dislikedKeywords });
+      const res = await axios.get("http://localhost:5000/api/songs", {
+        params: requestParams,
+      });
+      if (res.data.songs && res.data.songs.length > 0) {
+        setSongs(res.data.songs);
+        setCurrentIndex(0);
+        setPlayedIds(new Set());
+      }
+    } catch (err) {
+      console.error("Refresh list failed:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const buildMoodRequestParams = (selection, keywordState = {}) => {
@@ -275,16 +409,9 @@ function App() {
   };
 
   // Monitor playback for Auto-DJ prefetch (simplified for embed iframe)
-  useEffect(() => {
-    if (!selectedMood || !sessionId) return;
-
-    // Prefetch songs periodically (every 30 seconds as fallback)
-    const interval = setInterval(() => {
-      prefetchNextSongs();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [sessionId, selectedMood]);
+  // Disabled automatic prefetch as per new requirement: "Automatic refreshes should NOT happen anymore"
+  // User wants explicit refresh list button instead.
+  // useEffect(() => { ... prefetch logic ... }, [...])
 
   const handlePlayPause = () => {
     setIsPlaying(prev => !prev);
@@ -472,6 +599,8 @@ function App() {
                 liked={liked}
                 disliked={disliked}
                 playerRef={playerRef}
+                onAddToQueue={handleAddToQueue}
+                onRefreshList={handleRefreshList}
               />
             </ProtectedRoute>
           }
@@ -495,6 +624,22 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/playlist/:id"
+          element={
+            <ProtectedRoute>
+              <PlaylistPage
+                onPlaySongs={(songsList, startIndex) => {
+                  setSongs(songsList);
+                  setCurrentIndex(startIndex || 0);
+                  setPlayedIds(new Set());
+                  navigate("/player");
+                }}
+                onAddToQueue={handleAddToQueue}
+              />
             </ProtectedRoute>
           }
         />

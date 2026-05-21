@@ -1,4 +1,8 @@
-function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [] }) {
+import React, { useState } from 'react';
+import AddToPlaylistModal from './playlist/AddToPlaylistModal';
+
+function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQueue, onRefreshList }) {
+  const [playlistSong, setPlaylistSong] = useState(null);
   const initialsForSong = (song) =>
     (song?.title || song?.channelTitle || "MD")
       .split(" ")
@@ -9,9 +13,16 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [] }) {
 
   return (
     <aside className="queue-panel fade-in">
-      <div className="queue-head">
-        <h3>🎵 Queue</h3>
-        <p>Next up in your session</p>
+      <div className="queue-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h3>🎵 Queue</h3>
+          <p>Next up in your session</p>
+        </div>
+        {onRefreshList && (
+          <button className="refresh-queue-btn" onClick={onRefreshList} title="Refresh Queue">
+            🔄 Refresh
+          </button>
+        )}
       </div>
 
       <div className="queue-list">
@@ -34,6 +45,15 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [] }) {
                 <strong>{song.title}</strong>
                 <p>{song.channelTitle || "YouTube"}</p>
               </div>
+              <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto' }}>
+                <button 
+                  className="queue-action-btn"
+                  onClick={(e) => { e.stopPropagation(); setPlaylistSong(song); }}
+                  title="Add to Playlist"
+                >
+                  📂
+                </button>
+              </div>
             </button>
           ))
         )}
@@ -54,11 +74,35 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [] }) {
                   <strong>{song.title || "Untitled track"}</strong>
                   <span>{song.channelTitle || "YouTube"}</span>
                 </div>
+                <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto' }}>
+                  {onAddToQueue && (
+                    <button 
+                      className="queue-action-btn"
+                      onClick={(e) => { e.stopPropagation(); onAddToQueue(song); }}
+                      title="Add to Queue"
+                    >
+                      ➕
+                    </button>
+                  )}
+                  <button 
+                    className="queue-action-btn"
+                    onClick={(e) => { e.stopPropagation(); setPlaylistSong(song); }}
+                    title="Add to Playlist"
+                  >
+                    📂
+                  </button>
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      <AddToPlaylistModal 
+        isOpen={!!playlistSong} 
+        song={playlistSong} 
+        onClose={() => setPlaylistSong(null)} 
+      />
     </aside>
   );
 }

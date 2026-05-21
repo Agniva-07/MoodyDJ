@@ -3,6 +3,7 @@ import { getColor } from "colorthief";
 import YouTubePlayer from "./YouTubePlayer";
 import ProgressBar from "./ProgressBar";
 import VisualizerCard from "./VisualizerCard";
+import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
 import "./PlayerCard.css";
 
 const FALLBACK_ACCENT = "#7c3aed";
@@ -29,6 +30,7 @@ function PlayerCard({
   const [volume, setVolume] = useState(50);
   const [themeAccent, setThemeAccent] = useState(FALLBACK_ACCENT);
   const [themeGlow, setThemeGlow] = useState(FALLBACK_GLOW);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const handleVolumeChange = (e) => {
     const newVolume = parseInt(e.target.value, 10);
@@ -207,6 +209,10 @@ function PlayerCard({
           <button className={`control-btn dislike-btn ${disliked ? 'active' : ''}`} onClick={onDislike} disabled={!playerReady} title="Dislike" {...sharedButtonProps}>
             {disliked ? '👎' : '👎'}
           </button>
+          
+          <button className="control-btn" onClick={() => setShowAddModal(true)} disabled={!playerReady} title="Add to Playlist" {...sharedButtonProps}>
+            📂
+          </button>
         </div>
 
         <div className="volume-control">
@@ -228,6 +234,8 @@ function PlayerCard({
         </div>
       </div>
       </div>
+      
+      {showAddModal && <AddToPlaylistModal song={song} onClose={() => setShowAddModal(false)} isOpen={true} />}
     </section>
   );
 }
