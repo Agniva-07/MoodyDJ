@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { updateCachedPool } from "../services/cacheService";
+import { getSongsByArtist, getAllSongs, ensureSeedSongsLoaded } from "../services/dbService";
+import { generateLocalQueue } from "../services/localEngine";
 import Navbar from "../components/Navbar";
 import PlayerCard from "../components/PlayerCard";
 import QueuePanel from "../components/QueuePanel";
@@ -61,6 +64,18 @@ function SoloPage() {
   const [disliked, setDisliked] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [refilling, setRefilling] = useState(false);
+  const [dislikedVideoIds, setDislikedVideoIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_disliked_video_ids");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [dislikedArtistNames, setDislikedArtistNames] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_disliked_artists");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
 
   const playerRef = useRef(null);
   const lastSavedVideoRef = useRef(null);
@@ -118,6 +133,35 @@ function SoloPage() {
     if (!song) return;
     setDisliked(true);
     try {
+      const songArtist = (song.artistNormalized || song.artist || song.channelTitle || "").toLowerCase().trim();
+
+      setDislikedVideoIds(prev => {
+        const updated = Array.from(new Set([...prev, song.videoId]));
+        localStorage.setItem("moodydj_disliked_video_ids", JSON.stringify(updated));
+        return updated;
+      });
+
+      if (songArtist) {
+        setDislikedArtistNames(prev => {
+          const updated = Array.from(new Set([...prev, songArtist]));
+          localStorage.setItem("moodydj_disliked_artists", JSON.stringify(updated));
+          return updated;
+        });
+      }
+
+      // Remove from queue immediately
+      setSongs(prev => {
+        const nextSongs = prev.filter(s => s.videoId !== song.videoId);
+        if (nextSongs.length === 0) {
+          setCurrentIndex(0);
+          return [];
+        }
+        if (currentIndex >= nextSongs.length) {
+          setCurrentIndex(0);
+        }
+        return nextSongs;
+      });
+
       await axios.post("http://localhost:5000/api/dislike", {
         sessionId,
         videoId: song.videoId,
@@ -125,7 +169,6 @@ function SoloPage() {
         channelTitle: song.channelTitle,
         userId: getCurrentUserId()
       });
-      handleNextSong();
     } catch (err) {
       console.error("Solo Dislike failed:", err);
     }
@@ -172,29 +215,46 @@ function SoloPage() {
     const fetchSoloMix = async () => {
       try {
         setLoading(true);
-
         const artistNames = getArtistNames();
+        console.log("🧠 [LOCAL SOLO ENGINE] Loading mix for artists:", artistNames);
 
-        const { data } = await axios.post("http://localhost:5000/api/solo-songs", {
-          selectedArtists: artistNames,
-          userId: getCurrentUserId(),
+        // Ensure seed songs are loaded if DB is completely empty (ultimate safety)
+        await ensureSeedSongsLoaded("Solo engine fallback", { caller: "fetchSoloMix", artistNames });
+
+        // Fetch matching songs from IndexedDB for each selected artist
+        let accumulatedSongs = [];
+        for (const artistName of artistNames) {
+          const songsByArtist = await getSongsByArtist(artistName);
+          accumulatedSongs.push(...songsByArtist);
+        }
+
+        // If no songs match these artists in IndexedDB, fall back to getting all songs
+        if (accumulatedSongs.length === 0) {
+          console.warn(`⚠️ No local songs found for chosen artists. Falling back to all stored songs.`);
+          accumulatedSongs = await getAllSongs();
+        }
+
+        // Generate the local queue
+        const localQueue = generateLocalQueue(accumulatedSongs, {
+          recentSongs,
+          currentQueue: [],
+          targetSize: 50,
+          avoidPlayedIds: new Set(),
+          dislikedVideoIds,
+          dislikedArtistNames
         });
 
-        const isQuotaSafeMode = data.meta?.quotaSafeMode || data.quotaSafeMode;
-        if (isQuotaSafeMode && !hasShownQuotaWarningRef.current) {
-          showToast("Using cached music library to preserve API quota.", "info");
-          hasShownQuotaWarningRef.current = true;
-        }
+        console.log(`✅ [LOCAL SOLO ENGINE] Loaded ${localQueue.length} solo songs from IndexedDB. Zero API calls.`);
 
-        if (data.songs && data.songs.length > 0) {
-          setSongs(deduplicateSongs(data.songs));
+        if (localQueue.length > 0) {
+          setSongs(localQueue);
           setCurrentIndex(0);
         } else {
-          setError("No songs found.");
+          setError("No songs found in local cache.");
         }
       } catch (err) {
-        console.error("FULL ERROR:", err.response?.data || err.message);
-        setError(err.response?.data?.error || "Failed to fetch songs.");
+        console.error("❌ Error in local solo generation:", err);
+        setError("Failed to fetch songs.");
       } finally {
         setLoading(false);
       }
@@ -308,39 +368,50 @@ function SoloPage() {
   };
 
   const handleRefreshList = async () => {
-    console.log("🔄 [REFRESH LIST] Solo Mode refresh triggered. Source: cachedSongsPool (localStorage/session cache). No API calls.");
-    // 1. Zero-network refresh using master cachedSongsPool
-    let pool = songs;
+    console.log("🔄 [REFRESH LIST] Solo Mode refresh triggered. Source: IndexedDB. No API calls.");
+    
     try {
-      const stored = localStorage.getItem("moodydj_cached_pool");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.length > 10) pool = parsed;
-      }
-    } catch {}
+      setLoading(true);
+      const artistNames = getArtistNames();
 
-    if (!pool || pool.length === 0) return;
+      // Ensure seed songs are loaded if DB is completely empty (ultimate safety)
+      await ensureSeedSongsLoaded("Refresh solo mix fallback", { caller: "handleRefreshQueue", artistNames });
 
-    // 2. Preserve queue stability: Keep songs up to currentIndex intact
-    setSongs(prev => {
-      const safeIndex = currentIndex >= 0 && currentIndex < prev.length ? currentIndex : 0;
-      const beforeAndCurrent = prev.slice(0, safeIndex + 1);
-      
-      // Filter out songs that are already in the kept portion of the queue
-      const keptIds = new Set(beforeAndCurrent.map(s => s.videoId));
-      const remainingPool = pool.filter(s => !keptIds.has(s.videoId));
-      
-      // Fisher-Yates shuffle the remaining pool
-      const shuffled = [...remainingPool];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      // Fetch matching songs from IndexedDB for each selected artist
+      let accumulatedSongs = [];
+      for (const artistName of artistNames) {
+        const songsByArtist = await getSongsByArtist(artistName);
+        accumulatedSongs.push(...songsByArtist);
       }
-      
-      // Append a fresh list (e.g. 40 songs) after the current song
-      const newList = shuffled.slice(0, 40);
-      return [...beforeAndCurrent, ...newList];
-    });
+
+      if (accumulatedSongs.length === 0) {
+        accumulatedSongs = await getAllSongs();
+      }
+
+      // Generate local queue, avoiding the current queue
+      const localQueue = generateLocalQueue(accumulatedSongs, {
+        recentSongs,
+        currentQueue: songs, // avoid current queue
+        targetSize: 50,
+        avoidPlayedIds: new Set(),
+        dislikedVideoIds,
+        dislikedArtistNames
+      });
+
+      console.log(`🔄 [LOCAL REFRESH] Solo Mode regenerated queue locally from IndexedDB. Count: ${localQueue.length}. Zero API calls.`);
+
+      if (localQueue.length > 0) {
+        setSongs(localQueue);
+        setCurrentIndex(0);
+      } else {
+        showToast("No new songs found in local cache.", "info");
+      }
+    } catch (err) {
+      console.error("Local solo refresh failed:", err);
+      showToast("Failed to refresh list locally.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchStats = async (videoId) => {
@@ -393,7 +464,7 @@ function SoloPage() {
           onLike={handleLike}
           onDislike={handleDislike}
           likedKeywords={[]}
-          dislikedKeywords={[]}
+          dislikedArtists={dislikedArtistNames}
           playerRef={playerRef}
           onAddToQueue={handleAddToQueue}
           onRefreshList={handleRefreshList}

@@ -1,6 +1,13 @@
+import { useState, useEffect } from "react";
 import "./VisualizerCard.css";
 
 function VisualizerCard({ thumbnail, title, artist, isPlaying = false }) {
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [thumbnail]);
+
   return (
     <div className={`visualizer-card ${isPlaying ? "playing" : ""}`}>
       
@@ -19,12 +26,13 @@ function VisualizerCard({ thumbnail, title, artist, isPlaying = false }) {
             <div className="vinyl-grooves" />
 
             <div className="vinyl-art-mask">
-              {thumbnail ? (
+              {thumbnail && !imgError ? (
                 <img
                   src={thumbnail}
                   alt={title}
                   className="album-art"
                   draggable="false"
+                  onError={() => setImgError(true)}
                 />
               ) : (
                 <div className="album-placeholder">♪</div>

@@ -2,6 +2,9 @@ import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import { ARTISTS_DATA } from '../data/artists';
 import { useArtists } from '../context/ArtistContext';
+import { updateCachedPool } from '../services/cacheService';
+import { saveSongsToPool, getSongsCount } from '../services/dbService';
+import { useToast } from '../context/ToastContext';
 import './DailyArtistPrompt.css';
 
 const DailyArtistPrompt = () => {
@@ -12,6 +15,7 @@ const DailyArtistPrompt = () => {
     selectedArtists,
     currentUid,
   } = useArtists();
+  const { showToast } = useToast();
 
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -45,7 +49,7 @@ const DailyArtistPrompt = () => {
     }, 600);
 
     try {
-      const today = new Date().toLocaleDateString("en-CA");
+      const nowTs = Date.now();
 
       // Resolve IDs to names for the prewarm API
       const artistNames = selected.map(id => {
@@ -57,21 +61,42 @@ const DailyArtistPrompt = () => {
       await completeOnboarding(selected);
 
       // 2. Prewarm the backend cache with these artists
-      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
-        artists: artistNames
-      });
+      let fetchedSongs = [];
+      try {
+        const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
+          artists: artistNames
+        });
+        if (response.data && response.data.songs) {
+          fetchedSongs = response.data.songs;
+        }
+      } catch (apiErr) {
+        console.warn("⚠️ Prewarm API request failed. Staying in offline/local-only mode.", apiErr);
+        showToast("Offline mode: Using existing local library.", "info");
+      }
+
+      if (fetchedSongs.length > 0) {
+        await saveSongsToPool(fetchedSongs);
+        updateCachedPool(fetchedSongs);
+      }
 
       clearInterval(progressInterval);
       setWarmingProgress(100);
-      setSuccessMessage(`✅ Up to ${artistNames.length * 50} songs pre-loaded. Ready to play!`);
 
-      // Store prewarm names and date for local reference
+      const count = await getSongsCount();
+      if (fetchedSongs.length > 0) {
+        setSuccessMessage(`✅ Up to ${fetchedSongs.length} songs pre-loaded. Ready to play!`);
+      } else {
+        setSuccessMessage(`ℹ️ Offline mode: Using existing ${count} songs in local library.`);
+      }
+
+      // Store prewarm names and timestamp for local reference
       localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
-      localStorage.setItem('lastPrewarmDate', today);
+      localStorage.setItem('lastPrewarmTimestamp', nowTs.toString());
 
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
       clearInterval(progressInterval);
+      showToast("Onboarding failed. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -82,24 +107,29 @@ const DailyArtistPrompt = () => {
     if (selectedArtists.length < 3) return;
 
     try {
-      const today = new Date().toLocaleDateString("en-CA");
-      const lastPrewarmDate = localStorage.getItem('lastPrewarmDate');
-      const alreadyWarmedToday = lastPrewarmDate === today;
+      const nowTs = Date.now();
+      const lastPrewarmTs = Number(localStorage.getItem('lastPrewarmTimestamp') || 0);
+      const alreadyWarmedRecently = (nowTs - lastPrewarmTs) < 12 * 60 * 60 * 1000;
 
       // Mark today as onboarded using existing artists
       await completeOnboarding(selectedArtists);
 
-      // Background prewarm only if not already done today
-      if (!alreadyWarmedToday) {
+      // Background prewarm only if not already done recently
+      if (!alreadyWarmedRecently) {
         const artistNames = selectedArtists.map(id => {
           const found = ARTISTS_DATA.find(a => a.id === id);
           return found ? found.name : id;
         });
         localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
-        localStorage.setItem('lastPrewarmDate', today);
+        localStorage.setItem('lastPrewarmTimestamp', nowTs.toString());
 
         axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
           artists: artistNames
+        }).then(async res => {
+          if (res.data && res.data.songs) {
+            await saveSongsToPool(res.data.songs);
+            updateCachedPool(res.data.songs);
+          }
         }).catch(err => console.log("Background prewarm error:", err));
       }
     } catch (err) {

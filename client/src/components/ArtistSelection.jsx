@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { ARTISTS_DATA } from '../data/artists';
+import { updateCachedPool } from '../services/cacheService';
+import { saveSongsToPool } from '../services/dbService';
 import './ArtistSelection.css';
 
 const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
   const [searchTerm, setSearchTerm] = useState('');
   const [warning, setWarning] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [warmingProgress, setWarmingProgress] = useState(0);
 
   const isArtistDisabled = (id) => {
     return prewarmedIds.length > 0 && !prewarmedIds.includes(id);
@@ -24,12 +29,41 @@ const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }
     if (newSelected.size >= 3) setWarning('');
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedIds.size < 3) {
       setWarning(`⚠️ Select at least 3 artists. Currently selected: ${selectedIds.size}`);
       return;
     }
-    onComplete(Array.from(selectedIds));
+
+    setLoading(true);
+    setWarmingProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setWarmingProgress(prev => Math.min(prev + (100 / selectedIds.size), 99));
+    }, 600);
+
+    try {
+      const artistNames = Array.from(selectedIds).map(id => {
+        const found = ARTISTS_DATA.find(a => a.id === id);
+        return found ? found.name : id;
+      });
+
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/prewarm-artists`, {
+        artists: artistNames
+      });
+
+      if (response.data && response.data.songs) {
+        await saveSongsToPool(response.data.songs);
+        updateCachedPool(response.data.songs);
+      }
+    } catch (apiErr) {
+      console.warn("⚠️ Prewarm API request failed during onboarding.", apiErr);
+    } finally {
+      clearInterval(progressInterval);
+      setWarmingProgress(100);
+      setLoading(false);
+      onComplete(Array.from(selectedIds));
+    }
   };
 
   const filteredArtists = ARTISTS_DATA.filter((artist) =>
@@ -87,6 +121,17 @@ const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }
           })}
         </div>
 
+        {loading && warmingProgress > 0 && (
+          <div className="prewarm-progress-container" style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <p style={{ fontSize: '0.85rem', color: '#38bdf8', marginBottom: '8px' }}>
+              Building your music profile...
+            </p>
+            <div style={{ background: 'rgba(255,255,255,0.1)', height: '4px', width: '100%', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ background: '#38bdf8', height: '100%', width: warmingProgress + '%', transition: 'width 0.6s ease' }} />
+            </div>
+          </div>
+        )}
+
         <div className="artist-footer">
           {warning && (
             <p style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: '0.5rem', textAlign: 'center' }}>{warning}</p>
@@ -94,9 +139,9 @@ const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }
           <button
             className={`artist-continue-btn ${selectedIds.size >= 3 ? 'active' : 'disabled'}`}
             onClick={handleContinue}
-            disabled={selectedIds.size < 3}
+            disabled={selectedIds.size < 3 || loading}
           >
-            {selectedIds.size >= 3 ? "Continue" : `Select at least ${3 - selectedIds.size} more`}
+            {loading ? 'Pre-warming...' : (selectedIds.size >= 3 ? "Continue" : `Select at least ${3 - selectedIds.size} more`)}
           </button>
         </div>
       </div>

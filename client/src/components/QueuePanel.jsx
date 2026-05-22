@@ -47,7 +47,21 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQu
             >
               <span className="queue-index">{index === currentIndex ? "▶" : String(index + 1).padStart(2, "0")}</span>
               <div className="queue-thumb" aria-hidden="true">
-                {song.thumbnail ? <img src={song.thumbnail} alt="" /> : <span>{initialsForSong(song)}</span>}
+                {song.thumbnail ? (
+                  <>
+                    <img 
+                      src={song.thumbnail} 
+                      alt="" 
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                    <span style={{ display: 'none' }}>{initialsForSong(song)}</span>
+                  </>
+                ) : (
+                  <span>{initialsForSong(song)}</span>
+                )}
               </div>
               <div className="queue-copy">
                 <strong>{song.title}</strong>
@@ -72,7 +86,21 @@ function QueuePanel({ songs, currentIndex, onSelect, recentSongs = [], onAddToQu
             recentSongs.slice(0, 6).map((song) => (
               <div key={`recent-${song.videoId}`} className="recent-item">
                 <div className="recent-item__thumb" aria-hidden="true">
-                  {song.thumbnail ? <img src={song.thumbnail} alt="" /> : <span>{initialsForSong(song)}</span>}
+                  {song.thumbnail ? (
+                    <>
+                      <img 
+                        src={song.thumbnail} 
+                        alt="" 
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                      <span style={{ display: 'none' }}>{initialsForSong(song)}</span>
+                    </>
+                  ) : (
+                    <span>{initialsForSong(song)}</span>
+                  )}
                 </div>
                 <div className="recent-item__copy">
                   <strong>{song.title || "Untitled track"}</strong>

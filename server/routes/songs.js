@@ -98,6 +98,76 @@ function isQuotaSafe(units) {
   return quotaTracker.unitsUsed + units <= 7000;
 }
 
+const SEED_SONGS = {
+  chill: [
+    { videoId: "Umqb9KENgmk", title: "Tum Hi Ho (Aashiqui 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Umqb9KENgmk/mqdefault.jpg" },
+    { videoId: "Kz69P-u168o", title: "Raabta (Agent Vinod)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Kz69P-u168o/mqdefault.jpg" },
+    { videoId: "ktP7-x7x00s", title: "Baarishein (Anuv Jain)", channelTitle: "Anuv Jain", thumbnail: "https://i.ytimg.com/vi/ktP7-x7x00s/mqdefault.jpg" },
+    { videoId: "uQ79-Vn1v6U", title: "Slow Motion (Bharat)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/uQ79-Vn1v6U/mqdefault.jpg" },
+    { videoId: "hoNb6HuNmU0", title: "Khairiyat (Chhichhore)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/hoNb6HuNmU0/mqdefault.jpg" },
+    { videoId: "dZ0fwJ1OoEA", title: "Bekhayali (Kabir Singh)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/dZ0fwJ1OoEA/mqdefault.jpg" },
+    { videoId: "sK7riqg2mrA", title: "Agar Tum Saath Ho", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sK7riqg2mrA/mqdefault.jpg" },
+    { videoId: "bzSTpdcs-EI", title: "Channa Mereya", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/bzSTpdcs-EI/mqdefault.jpg" },
+    { videoId: "1-xGerv5FOk", title: "Phir Le Aya Dil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
+    { videoId: "fdubeMFwuZI", title: "Ilahi (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/fdubeMFwuZI/mqdefault.jpg" },
+    { videoId: "jHNNMj5bNQw", title: "Kabira (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/jHNNMj5bNQw/mqdefault.jpg" },
+    { videoId: "BwqQawK4Luw", title: "Enna Sona", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/BwqQawK4Luw/mqdefault.jpg" },
+    { videoId: "2bW1xR1wMhI", title: "Pehla Nasha", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/2bW1xR1wMhI/mqdefault.jpg" },
+    { videoId: "1p7T1j6d1t8", title: "Tujhe Bhula Diya", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/1p7T1j6d1t8/mqdefault.jpg" },
+    { videoId: "A5pSnIwbpaM", title: "Soch Na Sake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/A5pSnIwbpaM/mqdefault.jpg" }
+  ],
+  sad: [
+    { videoId: "1wRXb8tHl6Q", title: "Judaai (Badlapur)", channelTitle: "Eros Now", thumbnail: "https://i.ytimg.com/vi/1wRXb8tHl6Q/mqdefault.jpg" },
+    { videoId: "JmD8hJ3K1k4", title: "Woh Lamhe", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/JmD8hJ3K1k4/mqdefault.jpg" },
+    { videoId: "mBpsI1c0g2U", title: "Dil Dhadakne Do title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/mBpsI1c0g2U/mqdefault.jpg" },
+    { videoId: "Ww1Be-m5gQY", title: "Hamari Adhuri Kahani", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/Ww1Be-m5gQY/mqdefault.jpg" },
+    { videoId: "qNawhQ-Kz8w", title: "Tere Bina (Guru)", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/qNawhQ-Kz8w/mqdefault.jpg" },
+    { videoId: "VAlj_4tB_8g", title: "Ik Vaari Aa", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/VAlj_4tB_8g/mqdefault.jpg" },
+    { videoId: "h-g0x-vRiy8", title: "Main Dhoondne Ko Zamaane Mein", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/h-g0x-vRiy8/mqdefault.jpg" },
+    { videoId: "kpdv3BvTz1U", title: "O Saathi (Baaghi 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/kpdv3BvTz1U/mqdefault.jpg" },
+    { videoId: "vUCM_0evdQY", title: "Ae Dil Hai Mushkil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/vUCM_0evdQY/mqdefault.jpg" },
+    { videoId: "_K1v2L13d8-I", title: "Baarish (Half Girlfriend)", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/_K1v2L13d8-I/mqdefault.jpg" },
+    { videoId: "wF289n94T9I", title: "Teri Mitti", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/wF289n94T9I/mqdefault.jpg" },
+    { videoId: "ePO5M5DE01I", title: "Dil Diyan Gallan", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/ePO5M5DE01I/mqdefault.jpg" },
+    { videoId: "y68-tW_4M9I", title: "Zara Sa", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/y68-tW_4M9I/mqdefault.jpg" }
+  ],
+  focus: [
+    { videoId: "UDVtMYqUAyw", title: "Interstellar Theme Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/UDVtMYqUAyw/mqdefault.jpg" },
+    { videoId: "RxabLA7UQ9k", title: "Time Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/RxabLA7UQ9k/mqdefault.jpg" },
+    { videoId: "1VRZq3J0uz4", title: "Cornfield Chase", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/1VRZq3J0uz4/mqdefault.jpg" },
+    { videoId: "hN_q-_nGv4U", title: "Experience Ludovico Einaudi", channelTitle: "Ludovico Einaudi", thumbnail: "https://i.ytimg.com/vi/hN_q-_nGv4U/mqdefault.jpg" },
+    { videoId: "2nB1jZ2q9A4", title: "Uma Thurman Fall Out Boy", channelTitle: "Fall Out Boy", thumbnail: "https://i.ytimg.com/vi/2nB1jZ2q9A4/mqdefault.jpg" },
+    { videoId: "7wtfhZwyrcc", title: "Believer Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/7wtfhZwyrcc/mqdefault.jpg" },
+    { videoId: "ktvTqknDobU", title: "Radioactive Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/ktvTqknDobU/mqdefault.jpg" },
+    { videoId: "mk48xRzuNvA", title: "Hall of Fame The Script", channelTitle: "The Script", thumbnail: "https://i.ytimg.com/vi/mk48xRzuNvA/mqdefault.jpg" },
+    { videoId: "hT_nvWreIhg", title: "Counting Stars OneRepublic", channelTitle: "OneRepublic", thumbnail: "https://i.ytimg.com/vi/hT_nvWreIhg/mqdefault.jpg" },
+    { videoId: "0I647GU3Jsc", title: "Natural Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/0I647GU3Jsc/mqdefault.jpg" },
+    { videoId: "fKopy74weus", title: "Thunder Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fKopy74weus/mqdefault.jpg" },
+    { videoId: "D9G1VOjN_84", title: "Enemy Imagine Dragons Arcane", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/D9G1VOjN_84/mqdefault.jpg" },
+    { videoId: "fmI_Ndrxy14", title: "Warriors Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fmI_Ndrxy14/mqdefault.jpg" },
+    { videoId: "fB8TyLTD7EE", title: "Rise League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/fB8TyLTD7EE/mqdefault.jpg" },
+    { videoId: "ZrqcFrqMAVQ", title: "Ignite League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" }
+  ],
+  hype: [
+    { videoId: "vBw2clyP0Kk", title: "Bala Bala Shaitan Ka Saala", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/vBw2clyP0Kk/mqdefault.jpg" },
+    { videoId: "qFkNATtc3mc", title: "Ghungroo (War)", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/qFkNATtc3mc/mqdefault.jpg" },
+    { videoId: "4h-M6xJ3XvQ", title: "Malang title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/4h-M6xJ3XvQ/mqdefault.jpg" },
+    { videoId: "i9mJ9yZ-cPY", title: "Illegal Weapon 2.0", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/i9mJ9yZ-cPY/mqdefault.jpg" },
+    { videoId: "dv11H-84x9I", title: "Tamma Tamma Again", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/dv11H-84x9I/mqdefault.jpg" },
+    { videoId: "e-U0IVZ96e0", title: "Disco Deewane", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/e-U0IVZ96e0/mqdefault.jpg" },
+    { videoId: "F07e3Y-P6mQ", title: "Zingaat Hindi", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/F07e3Y-P6mQ/mqdefault.jpg" },
+    { videoId: "n0Q0Q7P3CAU", title: "Kar Gayi Chull", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/n0Q0Q7P3CAU/mqdefault.jpg" },
+    { videoId: "yuCBIJ7s-bE", title: "Badtameez Dil", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/yuCBIJ7s-bE/mqdefault.jpg" },
+    { videoId: "05TA9jNnCdU", title: "Galti Se Mistake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/05TA9jNnCdU/mqdefault.jpg" },
+    { videoId: "Wd2B8OAotU8", title: "Nashe Si Chadh Gayi", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/Wd2B8OAotU8/mqdefault.jpg" },
+    { videoId: "7tJ4R1_a37k", title: "Saturday Saturday Humpty Sharma", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/7tJ4R1_a37k/mqdefault.jpg" },
+    { videoId: "bjg50S0P0pA", title: "London Thumakda", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/bjg50S0P0pA/mqdefault.jpg" },
+    { videoId: "9Q6c4yJ2_9c", title: "Desi Beat", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/9Q6c4yJ2_9c/mqdefault.jpg" },
+    { videoId: "CKm30a03-7s", title: "Lat Lag Gayee", channelTitle: "Tips Official", thumbnail: "https://i.ytimg.com/vi/CKm30a03-7s/mqdefault.jpg" }
+  ]
+};
+SEED_SONGS.default = SEED_SONGS.chill;
+
 // PHASE 2: PART C - Fallback Chain
 const getFallbackSongs = async (type, query, userId) => {
   // Level 0 — sessionSongPool (accumulated songs from all searches this server session)
@@ -182,75 +252,7 @@ const getFallbackSongs = async (type, query, userId) => {
   }
 
   // Level 3 — Hardcoded seeds
-  const SEED_SONGS = {
-    chill: [
-      { videoId: "Umqb9KENgmk", title: "Tum Hi Ho (Aashiqui 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Umqb9KENgmk/mqdefault.jpg" },
-      { videoId: "Kz69P-u168o", title: "Raabta (Agent Vinod)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/Kz69P-u168o/mqdefault.jpg" },
-      { videoId: "ktP7-x7x00s", title: "Baarishein (Anuv Jain)", channelTitle: "Anuv Jain", thumbnail: "https://i.ytimg.com/vi/ktP7-x7x00s/mqdefault.jpg" },
-      { videoId: "uQ79-Vn1v6U", title: "Slow Motion (Bharat)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/uQ79-Vn1v6U/mqdefault.jpg" },
-      { videoId: "hoNb6HuNmU0", title: "Khairiyat (Chhichhore)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/hoNb6HuNmU0/mqdefault.jpg" },
-      { videoId: "dZ0fwJ1OoEA", title: "Bekhayali (Kabir Singh)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/dZ0fwJ1OoEA/mqdefault.jpg" },
-      { videoId: "sK7riqg2mrA", title: "Agar Tum Saath Ho", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/sK7riqg2mrA/mqdefault.jpg" },
-      { videoId: "bzSTpdcs-EI", title: "Channa Mereya", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/bzSTpdcs-EI/mqdefault.jpg" },
-      { videoId: "1-xGerv5FOk", title: "Phir Le Aya Dil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/1-xGerv5FOk/mqdefault.jpg" },
-      { videoId: "fdubeMFwuZI", title: "Ilahi (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/fdubeMFwuZI/mqdefault.jpg" },
-      { videoId: "jHNNMj5bNQw", title: "Kabira (YJHD)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/jHNNMj5bNQw/mqdefault.jpg" },
-      { videoId: "BwqQawK4Luw", title: "Enna Sona", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/BwqQawK4Luw/mqdefault.jpg" },
-      { videoId: "2bW1xR1wMhI", title: "Pehla Nasha", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/2bW1xR1wMhI/mqdefault.jpg" },
-      { videoId: "1p7T1j6d1t8", title: "Tujhe Bhula Diya", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/1p7T1j6d1t8/mqdefault.jpg" },
-      { videoId: "A5pSnIwbpaM", title: "Soch Na Sake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/A5pSnIwbpaM/mqdefault.jpg" }
-    ],
-    sad: [
-      { videoId: "1wRXb8tHl6Q", title: "Judaai (Badlapur)", channelTitle: "Eros Now", thumbnail: "https://i.ytimg.com/vi/1wRXb8tHl6Q/mqdefault.jpg" },
-      { videoId: "JmD8hJ3K1k4", title: "Woh Lamhe", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/JmD8hJ3K1k4/mqdefault.jpg" },
-      { videoId: "mBpsI1c0g2U", title: "Dil Dhadakne Do title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/mBpsI1c0g2U/mqdefault.jpg" },
-      { videoId: "Ww1Be-m5gQY", title: "Hamari Adhuri Kahani", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/Ww1Be-m5gQY/mqdefault.jpg" },
-      { videoId: "qNawhQ-Kz8w", title: "Tere Bina (Guru)", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/qNawhQ-Kz8w/mqdefault.jpg" },
-      { videoId: "VAlj_4tB_8g", title: "Ik Vaari Aa", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/VAlj_4tB_8g/mqdefault.jpg" },
-      { videoId: "h-g0x-vRiy8", title: "Main Dhoondne Ko Zamaane Mein", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/h-g0x-vRiy8/mqdefault.jpg" },
-      { videoId: "kpdv3BvTz1U", title: "O Saathi (Baaghi 2)", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/kpdv3BvTz1U/mqdefault.jpg" },
-      { videoId: "vUCM_0evdQY", title: "Ae Dil Hai Mushkil", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/vUCM_0evdQY/mqdefault.jpg" },
-      { videoId: "_K1v2L13d8-I", title: "Baarish (Half Girlfriend)", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/_K1v2L13d8-I/mqdefault.jpg" },
-      { videoId: "wF289n94T9I", title: "Teri Mitti", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/wF289n94T9I/mqdefault.jpg" },
-      { videoId: "ePO5M5DE01I", title: "Dil Diyan Gallan", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/ePO5M5DE01I/mqdefault.jpg" },
-      { videoId: "y68-tW_4M9I", title: "Zara Sa", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/y68-tW_4M9I/mqdefault.jpg" }
-    ],
-    focus: [
-      { videoId: "UDVtMYqUAyw", title: "Interstellar Theme Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/UDVtMYqUAyw/mqdefault.jpg" },
-      { videoId: "RxabLA7UQ9k", title: "Time Hans Zimmer", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/RxabLA7UQ9k/mqdefault.jpg" },
-      { videoId: "1VRZq3J0uz4", title: "Cornfield Chase", channelTitle: "Hans Zimmer", thumbnail: "https://i.ytimg.com/vi/1VRZq3J0uz4/mqdefault.jpg" },
-      { videoId: "hN_q-_nGv4U", title: "Experience Ludovico Einaudi", channelTitle: "Ludovico Einaudi", thumbnail: "https://i.ytimg.com/vi/hN_q-_nGv4U/mqdefault.jpg" },
-      { videoId: "2nB1jZ2q9A4", title: "Uma Thurman Fall Out Boy", channelTitle: "Fall Out Boy", thumbnail: "https://i.ytimg.com/vi/2nB1jZ2q9A4/mqdefault.jpg" },
-      { videoId: "7wtfhZwyrcc", title: "Believer Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/7wtfhZwyrcc/mqdefault.jpg" },
-      { videoId: "ktvTqknDobU", title: "Radioactive Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/ktvTqknDobU/mqdefault.jpg" },
-      { videoId: "mk48xRzuNvA", title: "Hall of Fame The Script", channelTitle: "The Script", thumbnail: "https://i.ytimg.com/vi/mk48xRzuNvA/mqdefault.jpg" },
-      { videoId: "hT_nvWreIhg", title: "Counting Stars OneRepublic", channelTitle: "OneRepublic", thumbnail: "https://i.ytimg.com/vi/hT_nvWreIhg/mqdefault.jpg" },
-      { videoId: "0I647GU3Jsc", title: "Natural Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/0I647GU3Jsc/mqdefault.jpg" },
-      { videoId: "fKopy74weus", title: "Thunder Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fKopy74weus/mqdefault.jpg" },
-      { videoId: "D9G1VOjN_84", title: "Enemy Imagine Dragons Arcane", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/D9G1VOjN_84/mqdefault.jpg" },
-      { videoId: "fmI_Ndrxy14", title: "Warriors Imagine Dragons", channelTitle: "Imagine Dragons", thumbnail: "https://i.ytimg.com/vi/fmI_Ndrxy14/mqdefault.jpg" },
-      { videoId: "fB8TyLTD7EE", title: "Rise League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/fB8TyLTD7EE/mqdefault.jpg" },
-      { videoId: "ZrqcFrqMAVQ", title: "Ignite League of Legends", channelTitle: "League of Legends", thumbnail: "https://i.ytimg.com/vi/ZrqcFrqMAVQ/mqdefault.jpg" }
-    ],
-    hype: [
-      { videoId: "vBw2clyP0Kk", title: "Bala Bala Shaitan Ka Saala", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/vBw2clyP0Kk/mqdefault.jpg" },
-      { videoId: "qFkNATtc3mc", title: "Ghungroo (War)", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/qFkNATtc3mc/mqdefault.jpg" },
-      { videoId: "4h-M6xJ3XvQ", title: "Malang title track", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/4h-M6xJ3XvQ/mqdefault.jpg" },
-      { videoId: "i9mJ9yZ-cPY", title: "Illegal Weapon 2.0", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/i9mJ9yZ-cPY/mqdefault.jpg" },
-      { videoId: "dv11H-84x9I", title: "Tamma Tamma Again", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/dv11H-84x9I/mqdefault.jpg" },
-      { videoId: "e-U0IVZ96e0", title: "Disco Deewane", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/e-U0IVZ96e0/mqdefault.jpg" },
-      { videoId: "F07e3Y-P6mQ", title: "Zingaat Hindi", channelTitle: "Zee Music Company", thumbnail: "https://i.ytimg.com/vi/F07e3Y-P6mQ/mqdefault.jpg" },
-      { videoId: "n0Q0Q7P3CAU", title: "Kar Gayi Chull", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/n0Q0Q7P3CAU/mqdefault.jpg" },
-      { videoId: "yuCBIJ7s-bE", title: "Badtameez Dil", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/yuCBIJ7s-bE/mqdefault.jpg" },
-      { videoId: "05TA9jNnCdU", title: "Galti Se Mistake", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/05TA9jNnCdU/mqdefault.jpg" },
-      { videoId: "Wd2B8OAotU8", title: "Nashe Si Chadh Gayi", channelTitle: "YRF", thumbnail: "https://i.ytimg.com/vi/Wd2B8OAotU8/mqdefault.jpg" },
-      { videoId: "7tJ4R1_a37k", title: "Saturday Saturday Humpty Sharma", channelTitle: "Sony Music India", thumbnail: "https://i.ytimg.com/vi/7tJ4R1_a37k/mqdefault.jpg" },
-      { videoId: "bjg50S0P0pA", title: "London Thumakda", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/bjg50S0P0pA/mqdefault.jpg" },
-      { videoId: "9Q6c4yJ2_9c", title: "Desi Beat", channelTitle: "T-Series", thumbnail: "https://i.ytimg.com/vi/9Q6c4yJ2_9c/mqdefault.jpg" },
-      { videoId: "CKm30a03-7s", title: "Lat Lag Gayee", channelTitle: "Tips Official", thumbnail: "https://i.ytimg.com/vi/CKm30a03-7s/mqdefault.jpg" }
-    ]
-  };
-  SEED_SONGS.default = SEED_SONGS.chill;
+  // SEED_SONGS has been hoisted to module scope
 
   let moodKey = "default";
   if (query) {
@@ -391,7 +393,7 @@ const MAX_PLAYED_HISTORY = 50;
 const DEFAULT_MOOD = "chill";
 
 // Duration thresholds for Singles and Playlists / Mixes
-const SINGLE_MIN = 180; // 3 mins
+const SINGLE_MIN = 120; // 2 mins — filters out YouTube Shorts
 const SINGLE_MAX = 600; // 10 mins
 const PLAYLIST_MIN = 1200; // 20 mins
 const PLAYLIST_MAX = 3600; // 60 mins
@@ -625,26 +627,20 @@ const extractKeywords = (title, channelTitle) => {
 /**
  * ✅ IMPROVED: Dynamic mood query with like/dislike support
  */
-const buildMoodQuery = (mood, likedKeywords, dislikedKeywords) => {
+const buildMoodQuery = (mood, likedKeywords) => {
   const base = MOOD_KEYWORDS[mood];
   if (!base) return null;
 
   const parts = base.split(" ");
   const boosted = likedKeywords.filter((keyword) => !parts.includes(keyword));
   
-  // Build query with boosts and exclusions
+  // Build query with boosts only (no keyword exclusions — dislike is videoId-only)
   const queryParts = [
     ...boosted.slice(0, 2), // Add up to 2 liked keywords
     ...parts // Base mood keywords
   ];
-  
-  // Add exclusions with minus operator
-  const exclusions = dislikedKeywords
-    .slice(0, 2)
-    .map(keyword => `-${keyword}`)
-    .join(" ");
 
-  return [...new Set(queryParts)].join(" ") + (exclusions ? ` ${exclusions}` : "");
+  return [...new Set(queryParts)].join(" ");
 };
 
 // ✅ FIXED: Session touch helper for inactivity TTL cleanup
@@ -729,15 +725,31 @@ const scoreVideos = async (videoIds) => {
 
         const isSingle = durationSeconds >= SINGLE_MIN && durationSeconds <= SINGLE_MAX;
         const isPlaylistVid = durationSeconds >= PLAYLIST_MIN && durationSeconds <= PLAYLIST_MAX;
-        if (!isSingle && !isPlaylistVid) return acc;
-
-        // SECTION 3A: Cover song rejection
+        
+        let isCoverReject = false;
         if (COVER_REJECT_PATTERNS.test(title)) {
           // Allow "sung by" only from official channels
           const channelLower = (channelTitle || "").toLowerCase();
           if (!OFFICIAL_CHANNELS.has(channelLower)) {
-            return acc; // Reject cover/karaoke
+            isCoverReject = true;
           }
+        }
+
+        // Cache rejected videos to prevent re-querying YouTube API in subsequent score calls
+        if ((!isSingle && !isPlaylistVid) || isCoverReject) {
+          const rejectData = {
+            videoId: video.id,
+            rejected: true,
+            reason: isCoverReject ? "cover" : "duration",
+            duration: durationSeconds,
+            title,
+            channelTitle,
+            publishedAt: video.snippet.publishedAt,
+          };
+          scoredVideosCache.set(video.id, { data: rejectData, timestamp: now });
+          savePersistentCache();
+          acc.push(rejectData);
+          return acc;
         }
 
         const viewCount = BigInt(stats.viewCount || 0);
@@ -764,6 +776,7 @@ const scoreVideos = async (videoIds) => {
           videoId: video.id, score,
           viewCount: Number(viewCount), likeCount: Number(likeCount),
           duration: durationSeconds, isMix, title, channelTitle,
+          publishedAt: video.snippet.publishedAt,
         };
 
         scoredVideosCache.set(video.id, { data: scoreData, timestamp: now });
@@ -1033,7 +1046,8 @@ const getOrCreateSession = (sessionId) => {
       mood: null,
       // ✅ NEW: Track user preferences per session
       likedKeywords: [],
-      dislikedKeywords: [],
+      dislikedArtists: [],
+      dislikedVideos: [],
       recentArtists: [], // SECTION 6: Track last 3 artists for diversification
       isPersonalized: false,
       selectedArtists: [],
@@ -1058,7 +1072,7 @@ const toScoredQueue = async (videos) => {
     scoreMap.set(scoreData.videoId, scoreData);
   });
 
-  // ✅ IMPROVED: Never drop videos - assign fallback score if missing
+  // ✅ IMPROVED: Filter out rejected or short songs, fallback for missing (if not rejected)
   // SECTION 2: Apply recencyPenalty to the final score
   return videos
     .map((video) => {
@@ -1076,7 +1090,14 @@ const toScoredQueue = async (videos) => {
           likeCount: 0,
           duration: 0,
           isMix: false,
+          sourceArtist: video.sourceArtist || "",
         };
+      }
+      if (scoreData.rejected) {
+        return null; // Exclude rejected songs (Shorts/Covers)
+      }
+      if (scoreData.duration > 0 && scoreData.duration < 120) {
+        return null; // Exclude short videos (< 2 mins)
       }
       return {
         videoId: video.videoId,
@@ -1088,8 +1109,10 @@ const toScoredQueue = async (videos) => {
         likeCount: scoreData.likeCount,
         duration: scoreData.duration,
         isMix: scoreData.isMix || false,
+        sourceArtist: video.sourceArtist || "",
       };
-    });
+    })
+    .filter(Boolean);
 };
 
 // ✅ FIXED: fallback from existing cache without search + dedup
@@ -1118,7 +1141,7 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
   const allowSearch = options.allowSearch !== false;
 
   // ✅ IMPROVED: Use session preferences for dynamic query
-  const query = buildMoodQuery(mood, session.likedKeywords, session.dislikedKeywords) 
+  const query = buildMoodQuery(mood, session.likedKeywords) 
     || MOOD_KEYWORDS[mood];
 
   // Search only if cache is empty OR cache is expired
@@ -1200,12 +1223,17 @@ const refillSessionQueue = async (sessionId, mood, options = { allowSearch: true
     "Kishore Kumar": 1.0
   };
 
+  const sessionDislikedArtists = session.dislikedArtists || [];
   session.videos.forEach(v => {
     let weight = 1.0;
-    if (v.title && v.channelTitle) {
+    const artist = (v.artistNormalized || v.artist || v.channelTitle || "").toLowerCase().trim();
+    const isDislikedArtist = artist && sessionDislikedArtists.some(da => da.toLowerCase().trim() === artist);
+
+    if (isDislikedArtist) {
+      weight = 0.2; // Significant priority lowering for disliked artist
+    } else if (v.title && v.channelTitle) {
       Object.keys(ARTIST_WEIGHTS).forEach(artistName => {
         const nameLower = artistName.toLowerCase();
-        // FIX 4: FIX ARTIST MATCHING (REMOVE FALSE POSITIVES)
         if (v.channelTitle && v.channelTitle.toLowerCase().includes(nameLower)) {
           weight = Math.max(weight, ARTIST_WEIGHTS[artistName]);
         }
@@ -1450,9 +1478,9 @@ const loadUserPreferences = async (userId, session) => {
     const db = getFirestore();
     const prefRef = db.collection("users").doc(userId).collection("preferences");
     
-    const [likedDoc, dislikedDoc, dislikedVidDoc] = await Promise.all([
+    const [likedDoc, dislikedArtDoc, dislikedVidDoc] = await Promise.all([
       prefRef.doc("likedKeywords").get(),
-      prefRef.doc("dislikedKeywords").get(),
+      prefRef.doc("dislikedArtists").get(),
       prefRef.doc("dislikedVideos").get()
     ]);
 
@@ -1462,10 +1490,9 @@ const loadUserPreferences = async (userId, session) => {
       session.likedKeywords = kwList.map(k => k.keyword).slice(0, 10);
     }
     
-    session.dislikedKeywords = [];
-    if (dislikedDoc.exists) {
-      const kwList = dislikedDoc.data().keywords || [];
-      session.dislikedKeywords = kwList.map(k => k.keyword).slice(0, 10);
+    session.dislikedArtists = [];
+    if (dislikedArtDoc.exists) {
+      session.dislikedArtists = dislikedArtDoc.data().artists || [];
     }
 
     session.dislikedVideos = [];
@@ -1473,7 +1500,7 @@ const loadUserPreferences = async (userId, session) => {
       session.dislikedVideos = dislikedVidDoc.data().videos || [];
     }
     
-    console.log(`✅ Loaded preferences for user ${userId}: ${session.likedKeywords.length} liked, ${session.dislikedKeywords.length} disliked keywords`);
+    console.log(`✅ Loaded preferences for user ${userId}: ${session.likedKeywords.length} liked keywords, ${session.dislikedArtists.length} disliked artists, ${session.dislikedVideos.length} disliked videos`);
   } catch (e) {
     console.error("❌ Failed to load user preferences:", e.message);
   }
@@ -1493,7 +1520,6 @@ router.get("/songs", async (req, res) => {
       weight1,
       weight2,
       likedKeywords,
-      dislikedKeywords,
       sessionId,
       userId,
       isPersonalized,
@@ -1501,7 +1527,6 @@ router.get("/songs", async (req, res) => {
     } = req.query;
 
     const liked = parseList(likedKeywords);
-    const disliked = parseList(dislikedKeywords);
     const artists = parseList(selectedArtists);
     const isPers = isPersonalized === "true" || isPersonalized === true;
 
@@ -1512,7 +1537,7 @@ router.get("/songs", async (req, res) => {
       return res.status(400).json({ error: "Invalid primary mood" });
     }
 
-    const query1 = buildMoodQuery(primaryMood, liked, disliked);
+    const query1 = buildMoodQuery(primaryMood, liked);
     if (!query1) {
       return res.status(400).json({ error: "Invalid primary mood query" });
     }
@@ -1584,7 +1609,7 @@ router.get("/songs", async (req, res) => {
       return res.status(400).json({ error: "Invalid secondary mood" });
     }
 
-    const query2 = buildMoodQuery(secondaryMood, liked, disliked);
+    const query2 = buildMoodQuery(secondaryMood, liked);
     const resolvedWeight1 = toWeight(weight1, 50);
     const resolvedWeight2 = toWeight(weight2, 50);
 
@@ -1925,7 +1950,7 @@ router.post("/like", async (req, res) => {
 // ============================================================
 // ENDPOINT 8: Dislike handler (Immediate queue adaptation)
 // ============================================================
-// ✅ NEW: Implement dislike behavior with immediate queue rebuild
+// ✅ NEW: Implement dislike behavior with immediate queue rebuild & keyword extraction
 router.post("/dislike", async (req, res) => {
   try {
     const { sessionId, videoId, title, channelTitle, userId } = req.body;
@@ -1935,45 +1960,38 @@ router.post("/dislike", async (req, res) => {
     }
 
     const session = getOrCreateSession(sessionId);
-    
-    // ✅ NEW: Extract keywords from disliked video
-    const keywords = extractKeywords(title || "", channelTitle || "");
-    
-    // Add to disliked keywords (avoid duplicates)
-    keywords.forEach(keyword => {
-      if (!session.dislikedKeywords.includes(keyword)) {
-        session.dislikedKeywords.push(keyword);
+
+    // Update session disliked videos
+    session.dislikedVideos = session.dislikedVideos || [];
+    if (!session.dislikedVideos.includes(videoId)) {
+      session.dislikedVideos.push(videoId);
+    }
+
+    // Optionally lower priority for the same exact artist in this session
+    const artist = (channelTitle || "").toLowerCase().trim();
+    if (artist) {
+      session.dislikedArtists = session.dislikedArtists || [];
+      if (!session.dislikedArtists.includes(artist)) {
+        session.dislikedArtists.push(artist);
       }
-    });
+    }
 
-    // Keep only top 10 disliked keywords
-    session.dislikedKeywords = session.dislikedKeywords.slice(0, 10);
+    console.log(`👎 DISLIKE: Banning exact videoId=${videoId}, lowering priority for artist="${artist}"`);
 
-    console.log(`👎 DISLIKE: ${videoId} - Keywords added:`, keywords);
-    console.log(`📊 Session disliked keywords:`, session.dislikedKeywords);
+    // Remove ONLY the exact disliked video from queue immediately
+    session.videos = session.videos.filter(video => video.videoId !== videoId);
 
-    // ✅ IMPORTANT: Immediately remove similar videos from queue
-    console.log(`🔄 Removing similar videos from queue...`);
-    const similarityThreshold = 0.5;
-    session.videos = session.videos.filter(video => {
-      if (video.videoId === videoId) return false; // Explicitly remove the disliked video itself
-      const videoKeywords = extractKeywords(video.title || "", video.channelTitle || "");
-      const commonKeywords = videoKeywords.filter(k => session.dislikedKeywords.includes(k));
-      const similarity = commonKeywords.length / Math.max(videoKeywords.length, 1);
-      return similarity <= similarityThreshold;
-    });
+    console.log(`📊 Queue after removal: ${session.videos.length} videos`);
 
-    console.log(`📊 Queue after filtering: ${session.videos.length} videos`);
-
-    // ✅ NEW: Rebuild queue using dynamic query if it becomes too small
+    // Rebuild queue if it becomes too small
     if (session.videos.length < QUEUE_MIN_SIZE && session.mood) {
-      console.log(`⚠️ Queue too small, rebuilding with updated preferences...`);
+      console.log(`⚠️ Queue too small, rebuilding...`);
       await refillSessionQueue(sessionId, session.mood, { allowSearch: true });
     }
 
     touchSession(sessionId);
 
-    // SECTION 1A: Persist disliked video and keywords to Firestore
+    // Persist disliked videoId and artist to Firestore
     if (userId) {
       runNonBlocking(async () => {
         try {
@@ -1988,18 +2006,16 @@ router.post("/dislike", async (req, res) => {
             videos.push(videoId);
             await prefRef.doc("dislikedVideos").set({ videos });
           }
-          
-          // Save disliked keywords
-          const kwDoc = await prefRef.doc("dislikedKeywords").get();
-          let kwList = kwDoc.exists ? (kwDoc.data().keywords || []) : [];
-          keywords.forEach(kw => {
-            const ex = kwList.find(k => k.keyword === kw);
-            if (ex) { ex.count++; ex.lastUpdated = Date.now(); }
-            else { kwList.push({ keyword: kw, count: 1, lastUpdated: Date.now() }); }
-          });
-          kwList.sort((a, b) => b.count - a.count);
-          kwList = kwList.slice(0, 20);
-          await prefRef.doc("dislikedKeywords").set({ keywords: kwList });
+
+          // Save disliked artist
+          if (artist) {
+            const artDoc = await prefRef.doc("dislikedArtists").get();
+            let artists = artDoc.exists ? (artDoc.data().artists || []) : [];
+            if (!artists.includes(artist)) {
+              artists.push(artist);
+              await prefRef.doc("dislikedArtists").set({ artists });
+            }
+          }
         } catch (e) {
           console.error("❌ Firestore dislike persist failed:", e.message);
         }
@@ -2008,9 +2024,10 @@ router.post("/dislike", async (req, res) => {
 
     return res.json({
       ok: true,
-      message: "Video disliked",
-      dislikedKeywords: session.dislikedKeywords,
-      effect: "immediate_removal_and_rebuild",
+      message: "Video disliked and artist priority lowered",
+      effect: "exact_video_removed_and_artist_priority_lowered",
+      dislikedVideosCount: session.dislikedVideos.length,
+      dislikedArtists: session.dislikedArtists,
       queueSize: session.videos.length,
     });
   } catch (error) {
@@ -2038,7 +2055,8 @@ router.get("/session-preferences", (req, res) => {
       sessionId,
       mood: session.mood,
       likedKeywords: session.likedKeywords,
-      dislikedKeywords: session.dislikedKeywords,
+      dislikedArtists: session.dislikedArtists,
+      dislikedVideosCount: session.dislikedVideos ? session.dislikedVideos.length : 0,
       queueSize: session.videos.length,
       playedCount: playedHistory.get(sessionId)?.size || 0,
     });
@@ -2062,7 +2080,8 @@ router.post("/reset-preferences", (req, res) => {
 
     const session = getOrCreateSession(sessionId);
     session.likedKeywords = [];
-    session.dislikedKeywords = [];
+    session.dislikedArtists = [];
+    session.dislikedVideos = [];
     
     touchSession(sessionId);
 
@@ -2070,7 +2089,8 @@ router.post("/reset-preferences", (req, res) => {
       ok: true,
       message: "Preferences reset",
       likedKeywords: session.likedKeywords,
-      dislikedKeywords: session.dislikedKeywords,
+      dislikedArtists: session.dislikedArtists,
+      dislikedVideosCount: 0,
     });
   } catch (error) {
     console.error("❌ Error in /reset-preferences:", error.message);
@@ -2117,6 +2137,18 @@ router.get("/song/:videoId/stats", async (req, res) => {
   try {
     const { videoId } = req.params;
 
+    // Check scoredVideosCache first to save quota
+    const cached = scoredVideosCache.get(videoId);
+    if (cached && cached.data) {
+      console.log(`♻️ Stats cache hit for videoId: ${videoId}`);
+      return res.json({
+        viewCount: cached.data.viewCount || 0,
+        likeCount: cached.data.likeCount || 0,
+        channelTitle: cached.data.channelTitle || "",
+        publishedAt: cached.data.publishedAt || new Date().toISOString(),
+      });
+    }
+
     const response = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
       params: {
         part: "statistics,snippet",
@@ -2128,7 +2160,12 @@ router.get("/song/:videoId/stats", async (req, res) => {
     const video = response.data.items[0];
 
     if (!video) {
-      return res.status(404).json({ error: "Video not found" });
+      return res.json({
+        viewCount: "0",
+        likeCount: "0",
+        channelTitle: "",
+        publishedAt: new Date().toISOString(),
+      });
     }
 
     const stats = {
@@ -2137,6 +2174,23 @@ router.get("/song/:videoId/stats", async (req, res) => {
       channelTitle: video.snippet.channelTitle,
       publishedAt: video.snippet.publishedAt,
     };
+
+    // Cache this stats query in scoredVideosCache
+    const existing = scoredVideosCache.get(videoId) || {};
+    const existingData = existing.data || {};
+    scoredVideosCache.set(videoId, {
+      data: {
+        ...existingData,
+        videoId,
+        viewCount: Number(stats.viewCount || 0),
+        likeCount: Number(stats.likeCount || 0),
+        channelTitle: stats.channelTitle,
+        publishedAt: stats.publishedAt,
+        title: existingData.title || video.snippet.title,
+      },
+      timestamp: Date.now()
+    });
+    savePersistentCache();
 
     res.json(stats);
   } catch (error) {
@@ -2323,10 +2377,6 @@ const fillRemaining = (finalVideos, extraPool, targetCount = 20) => {
 // ============================================================
 router.post("/prewarm-artists", async (req, res) => {
   try {
-    if (!isQuotaSafe(200)) {
-      return res.json({ ok: false, message: "Quota limit reached, skipping prewarm" });
-    }
-
     const { artists } = req.body;
     if (!artists || !Array.isArray(artists)) {
       return res.status(400).json({ error: "Missing artists array" });
@@ -2335,57 +2385,215 @@ router.post("/prewarm-artists", async (req, res) => {
     const limitedArtists = artists.slice(0, 10);
     const now = Date.now();
     
-    const promises = limitedArtists.map(async (artist) => {
-      const name = artist.toLowerCase().trim();
-      if (artistCache.has(name) && now - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
-        const cacheAgeMinutes = Math.round((now - artistCache.get(name).timestamp) / 60000);
-        console.log(`📦 PREWARM SKIP: ${name} already cached globally for all users, age: ${cacheAgeMinutes} mins`);
-        return; // Already cached
-      }
-      
-      try {
-        const [popular, hits] = await Promise.all([
-          fetchSearchPages(`${name} popular songs official`, 1, 50),
-          fetchSearchPages(`${name} best hits playlist`, 1, 25)
-        ]);
-        
-        const artistVideos = [];
-        const seen = new Set();
-        
-        const processItem = (item) => {
-          if (!seen.has(item.id.videoId)) {
-            seen.add(item.id.videoId);
-            artistVideos.push({
-              videoId: item.id.videoId,
-              title: item.snippet.title,
-              channelTitle: item.snippet.channelTitle,
-              thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-              sourceArtist: name
-            });
-          }
-        };
-        
-        popular.forEach(processItem);
-        hits.forEach(processItem);
-        
-        artistCache.set(name, {
-          videos: artistVideos,
-          timestamp: now,
-          offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
-        });
-        savePersistentCache();
-        console.log(`✅ Prewarmed artist: ${name} (${artistVideos.length} songs)`);
-      } catch (err) {
-        if (err.name === "QuotaSafeFallback") {
-          console.log(`🔴 Prewarm hit quota limit for ${name}, aborting.`);
+    // We only perform live YouTube search queries if we are quota-safe.
+    // If not, we skip fetching new songs but still build the pool from cache and fallback libraries.
+    const runLiveSearch = isQuotaSafe(200) && !quotaTracker.zeroApiMode;
+    
+    if (runLiveSearch) {
+      const promises = limitedArtists.map(async (artist) => {
+        const name = artist.toLowerCase().trim();
+        if (artistCache.has(name) && now - artistCache.get(name).timestamp < ARTIST_CACHE_TTL) {
+          const cacheAgeMinutes = Math.round((now - artistCache.get(name).timestamp) / 60000);
+          console.log(`📦 PREWARM SKIP: ${name} already cached globally for all users, age: ${cacheAgeMinutes} mins`);
           return;
         }
-        console.error(`❌ Prewarm failed for ${name}:`, err.message);
+        
+        try {
+          const [popular, hits] = await Promise.all([
+            fetchSearchPages(`${name} popular songs official`, 1, 50),
+            fetchSearchPages(`${name} best hits playlist`, 1, 25)
+          ]);
+          
+          const artistVideos = [];
+          const seen = new Set();
+          
+          const processItem = (item) => {
+            if (!seen.has(item.id.videoId)) {
+              seen.add(item.id.videoId);
+              artistVideos.push({
+                videoId: item.id.videoId,
+                title: item.snippet.title,
+                channelTitle: item.snippet.channelTitle,
+                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+                sourceArtist: name
+              });
+            }
+          };
+          
+          popular.forEach(processItem);
+          hits.forEach(processItem);
+          
+          const scoredVideos = await toScoredQueue(artistVideos);
+          if (scoredVideos.length > 0) {
+            artistCache.set(name, {
+              videos: scoredVideos,
+              timestamp: now,
+              offset: Math.floor(Math.random() * Math.max(1, scoredVideos.length))
+            });
+            savePersistentCache();
+            console.log(`✅ Prewarmed artist: ${name} (${scoredVideos.length} songs scored & filtered)`);
+          }
+        } catch (err) {
+          if (err.name === "QuotaSafeFallback") {
+            console.log(`🔴 Prewarm hit quota limit for ${name}, aborting.`);
+            return;
+          }
+          console.error(`❌ Prewarm failed for ${name}:`, err.message);
+        }
+      });
+      
+      await Promise.all(promises);
+    } else {
+      console.log("🔴 Quota low/unsafe or Zero API mode active. Skipping live searches, building pool from cache.");
+    }
+
+    // Collect ALL cached songs for the requested artists
+    const allPoolSongs = [];
+    const poolSeen = new Set();
+    
+    const addVideo = (v, defaultArtist) => {
+      if (!v || !v.videoId || poolSeen.has(v.videoId)) return;
+      poolSeen.add(v.videoId);
+      allPoolSongs.push({
+        videoId: v.videoId,
+        title: v.title,
+        channelTitle: v.channelTitle || v.artist || defaultArtist,
+        thumbnail: v.thumbnail,
+        sourceArtist: v.sourceArtist || defaultArtist,
+        viewCount: v.viewCount || 0,
+        likeCount: v.likeCount || 0,
+        duration: v.duration || v.durationSeconds || 300,
+        isMix: v.isMix || false
+      });
+    };
+
+    limitedArtists.forEach(artist => {
+      const name = artist.toLowerCase().trim();
+      const cached = artistCache.get(name);
+      if (cached && cached.videos) {
+        cached.videos.forEach(v => addVideo(v, name));
       }
     });
+
+    console.log(`📦 Prewarm primary pool: ${allPoolSongs.length} songs`);
+
+    // If total pool size is less than 850, pad it with other cached artists to make onboarding robust
+    if (allPoolSongs.length < 850) {
+      console.log(`⚠️ Pool size too small (${allPoolSongs.length} songs). Padding with other cached artists...`);
+      for (const [cachedName, cachedData] of artistCache.entries()) {
+        if (allPoolSongs.length >= 850) break;
+        if (cachedData && cachedData.videos) {
+          cachedData.videos.forEach(v => addVideo(v, cachedName));
+        }
+      }
+    }
+
+    // If still less than 850, pull from scoredVideosCache
+    if (allPoolSongs.length < 850) {
+      console.log(`⚠️ Pool size still small (${allPoolSongs.length} songs). Padding from scored videos cache...`);
+      for (const [vid, cacheItem] of scoredVideosCache.entries()) {
+        if (allPoolSongs.length >= 850) break;
+        const v = cacheItem.data;
+        if (v && !v.rejected) {
+          addVideo(v, (v.channelTitle || "Unknown").toLowerCase().replace(" - topic", "").trim());
+        }
+      }
+    }
+
+    // If still less than 850, pull from SEED_SONGS hardcoded library
+    if (allPoolSongs.length < 850) {
+      console.log(`⚠️ Pool size still small (${allPoolSongs.length} songs). Padding with hardcoded SEED_SONGS...`);
+      const moodCategories = ["chill", "sad", "focus", "hype"];
+      for (const mood of moodCategories) {
+        if (allPoolSongs.length >= 850) break;
+        const seeds = SEED_SONGS[mood] || [];
+        seeds.forEach(v => {
+          addVideo(v, "seed");
+        });
+      }
+    }
+
+    console.log(`📦 Prewarm pool after padding: ${allPoolSongs.length} songs`);
+
+    // Filter and score the pool
+    const cleanSongs = await toScoredQueue(allPoolSongs);
+    console.log(`📦 Cleaned pool songs count: ${cleanSongs.length}`);
+
+    // Enrich metadata for each song to match the local-first schema requirements
+    const enrichedSongs = cleanSongs.map(song => {
+      const titleLower = (song.title || "").toLowerCase();
+      
+      // 1. Mood classification
+      const tags = [];
+      if (/lofi|chill|relax|acoustic|soft|romantic|peaceful|slowed|reverb|unplugged/i.test(titleLower)) tags.push("chill");
+      if (/sad|dard|judai|breakup|emotional|crying|alone|miss|dil|broken|gam/i.test(titleLower)) tags.push("sad");
+      if (/party|workout|dance|club|remix|dhol|hype|energetic|dj|bass|trap|shaitan/i.test(titleLower)) tags.push("hype");
+      if (/instrumental|study|beats|peaceful|flute|guitar|piano|meditation|ambient/i.test(titleLower)) tags.push("focus");
+      
+      // Fallback mood tagging based on videoId (deterministic)
+      if (tags.length === 0) {
+        const fallbacks = ["chill", "focus", "hype", "sad"];
+        const charCodeSum = (song.videoId || "").split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        tags.push(fallbacks[charCodeSum % fallbacks.length]);
+      }
+
+      // 2. Energy Score calculation [0.05, 0.99]
+      let energyScore = 0.5;
+      if (/party|workout|dance|club|remix|dhol|hype|energetic|dj|bass|trap/i.test(titleLower)) {
+        energyScore += 0.3;
+      }
+      if (/lofi|chill|relax|acoustic|soft|slowed|reverb|unplugged|sad|dard|emotional/i.test(titleLower)) {
+        energyScore -= 0.3;
+      }
+      if (song.viewCount > 0 && song.likeCount > 0) {
+        const likeRatio = Number(song.likeCount) / Number(song.viewCount);
+        energyScore += (likeRatio * 200 - 10) * 0.01;
+      }
+      energyScore = Math.max(0.05, Math.min(0.99, energyScore));
+
+      // 3. Popularity Score calculation [0.0, 1.0]
+      let popularityScore = 0.5;
+      if (song.viewCount > 0) {
+        const logViews = Math.log10(Number(song.viewCount));
+        popularityScore = Math.min(1.0, Math.max(0.0, logViews / 9)); // log10(1B) = 9
+      }
+
+      // 4. Thumbnail Optimization
+      let optimizedThumb = song.thumbnail || `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
+      if (optimizedThumb && (optimizedThumb.includes("maxresdefault") || optimizedThumb.includes("hqdefault") || optimizedThumb.includes("sddefault"))) {
+        optimizedThumb = optimizedThumb
+          .replace("maxresdefault.jpg", "mqdefault.jpg")
+          .replace("hqdefault.jpg", "mqdefault.jpg")
+          .replace("sddefault.jpg", "mqdefault.jpg");
+      }
+
+      const sourceArtistNormalized = (song.sourceArtist || "").toLowerCase().trim();
+
+      return {
+        videoId: song.videoId,
+        title: song.title,
+        artist: song.channelTitle || "Unknown Artist",
+        artistNormalized: sourceArtistNormalized || (song.channelTitle || "").toLowerCase().trim(),
+        thumbnail: optimizedThumb,
+        durationSeconds: song.duration || 300,
+        moodTags: tags,
+        energyScore: parseFloat(energyScore.toFixed(3)),
+        popularityScore: parseFloat(popularityScore.toFixed(3)),
+        sourceArtist: sourceArtistNormalized,
+        validated: true
+      };
+    });
+
+    // Capping the pool size to a healthy maximum of 1000 songs, but returning at least 700 if available
+    const finalPool = enrichedSongs.slice(0, 1000);
+    console.log(`📦 Onboarding prewarm final pool: returning ${finalPool.length} enriched songs to client`);
     
-    await Promise.all(promises);
-    return res.json({ ok: true, message: "Artists prewarmed successfully" });
+    return res.json({
+      ok: true,
+      message: "Artists prewarmed and universe loaded successfully",
+      songs: finalPool
+    });
+
   } catch (error) {
     console.error("❌ Error in /prewarm-artists:", error.message);
     return res.status(500).json({ error: "Prewarm failed" });
@@ -2452,14 +2660,17 @@ router.post("/solo-songs", async (req, res) => {
           hits.forEach(processItem);
           
           if (artistVideos.length > 0) {
-            artistCache.set(name, {
-              videos: artistVideos,
-              timestamp: Date.now(),
-              offset: Math.floor(Math.random() * Math.max(1, artistVideos.length))
-            });
-            savePersistentCache();
-            console.log(`✅ Fetched and cached missing artist: ${name} (${artistVideos.length} songs)`);
-            return shuffleResults(artistVideos).slice(0, 15);
+            const scoredVideos = await toScoredQueue(artistVideos);
+            if (scoredVideos.length > 0) {
+              artistCache.set(name, {
+                videos: scoredVideos,
+                timestamp: Date.now(),
+                offset: Math.floor(Math.random() * Math.max(1, scoredVideos.length))
+              });
+              savePersistentCache();
+              console.log(`✅ Fetched and cached missing artist: ${name} (${scoredVideos.length} songs scored & filtered)`);
+              return shuffleResults(scoredVideos).slice(0, 15);
+            }
           }
         } catch (err) {
           console.error(`❌ Fetch failed for ${name}:`, err.message);
@@ -2497,8 +2708,11 @@ router.post("/solo-songs", async (req, res) => {
     const recentSongs = await getRecentSongs(userId);
     const varietyFilteredVideos = applyRecentSongFilter(allFetchedVideos, recentSongs, dislikedVids);
 
+    // Score and filter to ensure no shorts or cover songs are served in Solo Mode
+    const scoredVarietyVideos = await toScoredQueue(varietyFilteredVideos);
+
     // Take up to 50 songs assembled from multiple artists
-    let completeMix = shuffleResults(varietyFilteredVideos);
+    let completeMix = shuffleResults(scoredVarietyVideos);
     completeMix = completeMix.slice(0, 50);
 
     if (completeMix.length === 0) {

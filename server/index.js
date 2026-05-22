@@ -32,14 +32,17 @@ app.get("/api/onboarding-status", async (req, res) => {
   try {
     const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
-      return res.json({ completedToday: false, lastOnboardedDate: null });
+      return res.json({ completedToday: false, lastOnboardedDate: null, lastOnboardedTimestamp: null });
     }
     const data = userDoc.data();
-    const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
-    const completedToday = data.lastOnboardedDate === today;
+    // 12-hour onboarding cycle: check timestamp instead of calendar date
+    const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+    const lastTs = data.lastOnboardedTimestamp || 0;
+    const completedToday = (Date.now() - lastTs) < TWELVE_HOURS;
     return res.json({
       completedToday,
       lastOnboardedDate: data.lastOnboardedDate || null,
+      lastOnboardedTimestamp: lastTs,
       selectedArtists: data.selectedArtists || [],
     });
   } catch (err) {
@@ -64,6 +67,7 @@ app.post("/api/complete-onboarding", async (req, res) => {
     const today = new Date().toLocaleDateString("en-CA");
     await db.collection("users").doc(uid).set({
       lastOnboardedDate: today,
+      lastOnboardedTimestamp: Date.now(),
       selectedArtists: selectedArtistIds,
     }, { merge: true });
 

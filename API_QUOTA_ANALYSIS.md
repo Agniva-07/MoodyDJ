@@ -1,66 +1,107 @@
 # 📊 MoodyDJ API & Quota Usage Analysis
 
-This document outlines **exactly** when and where API calls are made across the MoodyDJ ecosystem. It helps diagnose why your YouTube or Firebase API quotas might be exhausting and provides visibility into the caching mechanics.
+This document outlines **exactly** when, where, and why API calls (YouTube API & Firebase Firestore) are made across the MoodyDJ ecosystem. It helps diagnose quota exhaustion and documents the optimizations implemented to ensure quota safety.
 
 ---
 
-## 1. YouTube Data API v3 (The Heavy Quota Consumer)
-The YouTube API is the most restrictive and expensive resource. Your backend (`server/routes/songs.js`) makes calls to the YouTube API.
+## 1. YouTube Data API v3 (Quota Triggers)
+
+The YouTube Data API v3 has a daily limit and is highly sensitive to quota consumption.
 
 ### 🛑 WHEN the YouTube API is CALLED:
-1. **Cache Misses on Startup (`/api/songs`)**:
-   - If the backend's in-memory cache or Redis/database doesn't have the songs for a requested mood/artist combination, it triggers a `GET /youtube/v3/search` request.
-   - Search requests cost **100 quota units** each (very expensive).
-   - If a user logs in and requests a highly specific/rare artist that hasn't been cached, a search is performed.
-2. **Fetching Missing Song Metadata (`/api/song/:id/stats`)**:
-   - If a song ID is in the queue or playlist but its full metadata (duration, high-res thumbnail) is missing, the backend calls `GET /youtube/v3/videos`.
-   - Video detail requests cost **1 quota unit** per batch.
-3. **Daily Artist Pre-warming**:
-   - If the system proactively attempts to "warm up" cache for artists requested in the `DailyArtistPrompt`, it might trigger multiple search requests if those artists aren't already cached locally.
 
-### ✅ WHEN the YouTube API is SKIPPED (Safe Zones):
-1. **Frontend `cachedSongsPool`**: Once the frontend fetches a batch of songs via `/api/songs`, it stores them in a massive `cachedSongsPool` in React state. Hitting the "Refresh" or "Reshuffle" buttons purely reorganizes this pool and **does not** hit the YouTube API.
-2. **Queue Restoration**: The frontend saves the queue to `localStorage` (`moodydj_app_queue`). When you reopen the app or the PWA, it restores the queue locally. No YouTube API calls are made during initialization.
-3. **Backend Memory Cache**: If a user selects "Arijit Singh" and the backend already fetched his songs earlier today, it returns the songs from the backend cache.
+1. **Daily Artist Pre-warming (`POST /api/prewarm-artists`)**:
+   - **Trigger**: Occurs when the user completes onboarding (the Daily Artist Selection popup) or selects "Keep Yesterday's Artists" after the 12-hour window has expired.
+   - **API Calls**:
+     - Calls `GET /youtube/v3/search` for popular songs and best hits playlists for each selected artist (up to 10 artists). Cost: **100 units** per search request.
+     - Calls `GET /youtube/v3/videos` to fetch content details (duration) and snippet metadata to score and filter out YouTube Shorts. Cost: **1 unit** per batch of 50 video IDs.
+   - **Cache Check**: If an artist is already in the backend's persistent `artistCache` (and has been cached for less than 12 hours), the search is skipped entirely.
 
-### 💡 Why Your YouTube Quota Might Exhaust Quickly:
-- **Multiple Unique Artists**: If 10 users select 10 *different* artists, the backend must make 10 separate `search` requests (costing 1,000 units).
-- **Restarting the Server**: If the backend only uses an in-memory variable for caching (instead of a persistent database like MongoDB/Redis), restarting the server wipes the cache, forcing it to fetch from YouTube again for the next requests.
-- **Uncapped Search Results**: Requesting more than 50 items per search can trigger pagination loops, multiplying the 100-unit cost.
+2. **Solo Mode Mix Creation (`POST /api/solo-songs`)**:
+   - **Trigger**: User starts playing Solo Mode or clicks "Refresh" in Solo Mode.
+   - **API Calls**:
+     - Checks the `artistCache` for each requested artist.
+     - **Cache Miss**: If any artist is missing from the cache, the backend makes search queries (`GET /youtube/v3/search`) for that artist's songs. Cost: **100 units** per search query.
+     - **Validation**: Fetched videos are passed through `toScoredQueue`, batch-querying `/youtube/v3/videos` to filter out Shorts and covers. Cost: **1 unit** per 50 videos.
+   - **Cache Hit**: Returns songs directly from `artistCache` (0 quota).
+
+3. **Mood/Blend Mode Songs (`GET /api/songs`)**:
+   - **Trigger**: User starts playing mood/blend mode, or when the frontend's local `cachedSongsPool` is empty or has fewer than 10 songs during a refresh list fallback.
+   - **API Calls**:
+     - Checks the backend persistent cache (`searchCache` and `blendCache`) first.
+     - **Cache Miss**: Performs a search (`GET /youtube/v3/search`) for the combined mood keywords (cost: **100 units**) and fetches video details via `/youtube/v3/videos` to score them (cost: **1 unit** per 50 videos).
+   - **Cache Hit**: Returns cached scored songs (0 quota).
+
+4. **Song Stats & Reference Check (`GET /api/song/:videoId/stats`)**:
+   - **Trigger**: Called by the frontend whenever the playing song changes (auto-advance, skip, previous, or queue load on refresh).
+   - **API Calls**:
+     - **Optimized Cache Hit**: Checks the backend's persistent `scoredVideosCache`. If statistics exist, returns them immediately (**0 units**).
+     - **Cache Miss**: Queries `GET /youtube/v3/videos` for that specific video ID (statistics and snippet). Cost: **1 unit**. The result is then cached in `scoredVideosCache` and written to `cache.json`.
+
+5. **Auto-DJ Prefetching (`POST /api/songs/prewarm`)**:
+   - **Trigger**: Frontend queue reaches 75% playback progress.
+   - **API Calls**: Hits backend cache first. Falls back to YouTube Search/Video details on cache miss.
 
 ---
 
 ## 2. Firebase Firestore (Database Reads/Writes)
-Firebase Firestore charges based on Document Reads, Writes, and Deletes. 
+
+Firestore is billed based on Document Reads, Writes, and Deletes.
 
 ### 🛑 WHEN Firestore is CALLED:
-1. **User Authentication & Profile (`userService.js`)**:
-   - `getDoc(userRef)` is called on every fresh login/reload to fetch preferences.
-   - `setDoc(userRef, { lastLogin })` updates the user's login timestamp.
-2. **Recently Played History**:
-   - When a song finishes playing, `saveHistory(userId, song)` writes to the `users/{userId}/history` subcollection. (1 Write per song played).
-   - The app fetches `history` on load to populate the "Recently Played" section.
-3. **Liked Songs & Artist Preferences**:
-   - Liking a song or selecting a new artist writes directly to Firestore.
-4. **Playlists System (`playlistService.js`)**:
-   - Creating, editing, or deleting a playlist triggers 1 Write/Delete.
-   - Adding a song to a playlist uses `arrayUnion` (1 Read, 1 Write).
 
-### ✅ WHEN Firestore is SKIPPED (Safe Zones):
-1. **No Realtime Listeners**: The app deliberately avoids using `onSnapshot` (realtime listeners). All data is fetched via `getDocs` **once** on demand.
-2. **Aggressive `localStorage` Caching**:
-   - **Playlists** are cached in `localStorage` (`moodydj_playlists_{userId}`) for 5 minutes. Opening the Add to Playlist modal repeatedly within 5 minutes costs **0 Reads**.
-   - **Song Metadata** is cached in `moodydj_song_cache` (up to 500 songs). Resolving song IDs inside a playlist uses this local cache instead of hitting the database.
-   - **Liked Songs** are cached locally. Toggling likes optimistically updates the UI first.
+1. **User Authentication & Onboarding Loading**:
+   - **Trigger**: Page loads / User authentication state changes.
+   - **API Call**: `getDoc(userRef)` reads the user's preferences, selected artists, and onboarding timestamps. Cost: **1 Read**.
 
-### 💡 Why Your Firebase Quota Might Exhaust:
-- **Spamming the Player**: If you skip through 50 songs rapidly, the `saveHistory` function might trigger 50 Writes to Firestore.
-- **Clearing Browser Cache**: If users constantly clear their browser cache, the app falls back to fetching everything from Firestore on every reload.
+2. **Daily Onboarding Confirmation (`completeOnboarding`)**:
+   - **Trigger**: User confirms artist selections or skips (keeping previous artists) on the daily prompt modal.
+   - **API Call**: `setDoc(userRef, { selectedArtists, lastOnboardedDate, lastOnboardedTimestamp })` updates the user's preferences. Cost: **1 Write**.
+
+3. **Liking a Song (`POST /api/like`)**:
+   - **Trigger**: User clicks the "Like" button on a playing song.
+   - **API Call** (non-blocking backend execution):
+     - Increments the artist's count under `users/{userId}/preferences/likedArtists` (1 Read, 1 Write).
+     - Increments the extracted keywords' counts under `users/{userId}/preferences/likedKeywords` (1 Read, 1 Write).
+     - Saves the liked song details under `users/{userId}/likedSongs/{videoId}` (1 Write).
+
+4. **Disliking a Song (`POST /api/dislike`)**:
+   - **Trigger**: User clicks the "Dislike" button on a playing song.
+   - **API Call** (non-blocking backend execution):
+     - Appends the video ID to `users/{userId}/preferences/dislikedVideos` (1 Read, 1 Write).
+     - Appends the artist name to `users/{userId}/preferences/dislikedArtists` (1 Read, 1 Write).
+
+5. **Save History (`saveHistory`)**:
+   - **Trigger**: A song is played continuously for 20 seconds.
+   - **API Call**: Writes the song to the `users/{userId}/history` subcollection (1 Write).
+
+6. **Playlists CRUD Operations**:
+   - **Trigger**: Creating, editing, pinning, deleting, or adding/removing songs to/from playlists.
+   - **API Call**: standard document writes/updates/deletes on the `users/{userId}/playlists` subcollection.
 
 ---
 
-## 3. Recommended Fixes for Quota Exhaustion
-1. **Implement Backend Persistent Cache**: Ensure `server/routes/songs.js` saves YouTube API search results to a persistent database (like MongoDB or Firestore) rather than just an in-memory array. This prevents server restarts from wiping out expensive search data.
-2. **Debounce Firestore Writes**: If `saveHistory` is called too frequently (e.g., when skipping tracks), add a debounce or require a song to play for at least 30 seconds before writing it to the database.
-3. **Monitor `DailyArtistPrompt`**: Ensure the daily artist prompt doesn't trigger automated background YouTube searches for hundreds of obscure artists at once.
-4. **YouTube Quota Fallback**: Ensure the backend's "QUOTA SAFE MODE" actively serves older cached JSON files when the API returns a `403 Quota Exceeded` error.
+## 3. Glitches Resolved & Optimizations
+
+We implemented the following key fixes to address quota exhaustion, queue rendering glitches, and onboarding flow:
+
+### 🔄 1. The Queue Refresh Button Glitch
+* **The Issue**: Previously, clicking "Refresh" reshuffled the `moodydj_cached_pool` in local storage but failed to filter out the 50 songs already in the player queue. As a result, the "refreshed" queue had massive overlap with the current queue, making it seem like it didn't change. Additionally, starting the refreshed queue's first song triggered an uncached stats API call.
+* **The Fix**: 
+  - Updated `handleRefreshList` in both `App.jsx` and `SoloPage.jsx` to construct a `currentSet` of video IDs from the current queue and subtract them (along with `recentSongs` history) from the local cached pool before slicing a new batch of 50 songs.
+  - Implemented persistent caching for the `/api/song/:videoId/stats` endpoint inside `scoredVideosCache` (written to `cache.json`), ensuring stats calls on song changes cost **0 units** for cached songs.
+
+### ⏱️ 2. Dynamic 12-Hour Onboarding Prompt
+* **The Issue**: When the 12-hour window since the last onboarding selection expired, the Daily Artist Selection popup would only trigger if the user reloaded the page.
+* **The Fix**: Added `lastOnboardedTimestamp` state inside `ArtistContext.jsx` and set up a background interval that runs every 30 seconds. The interval checks if `Date.now() - lastOnboardedTimestamp >= 12 * 60 * 60 * 1000`. Once this condition is met, it dynamically updates `onboardingCompletedToday` to `false`, rendering the daily selection popup instantly.
+
+### 🚫 3. YouTube Shorts (< 2 Mins) & Cover Filtering
+* **The Issue**: YouTube Shorts and cover songs would slip into Solo Mode and Prewarmed Artist pools because the endpoints did not run the songs through the scoring/duration filters before cache/return. Also, rejected songs were not cached, resulting in repeated YouTube calls.
+* **The Fix**:
+  - In `scoreVideos`, if a video fails the duration thresholds (less than 2 minutes) or matches cover keywords without an official channel, it is cached in `scoredVideosCache` with a `rejected: true` flag. This prevents it from ever querying the YouTube API again.
+  - In `toScoredQueue`, any song with `rejected: true` or a positive duration under 120 seconds is strictly discarded from the queue.
+  - Updated `/prewarm-artists` and `/solo-songs` to route search and cached pools through `toScoredQueue`, completely sanitizing Solo Mode queues and the onboarding prewarmed pool of YouTube Shorts.
+
+### 👎 4. VideoId-Centric & Artist-Aware Dislikes (No Title Keywords)
+* **The Issue**: Aggressive keyword-based dislike filtering causes false positives, accidental mood suppression, and song exclusion (e.g., disliking one "sad remix" song should not suppress all "sad" songs globally).
+* **The Fix**: Reverted back to the safer videoId-centric dislike model. Disliking a song removes the exact `videoId` from the active queue and bans it, and lowers playback priority for that artist/channel in future queues, without globally keyword-banning words in titles.

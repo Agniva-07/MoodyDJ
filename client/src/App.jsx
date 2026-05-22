@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { updateCachedPool } from "./services/cacheService";
+import { getSongsByMood, getAllSongs, getSongsCount, ensureSeedSongsLoaded } from "./services/dbService";
+import { generateLocalQueue } from "./services/localEngine";
 import LandingPage from "./pages/LandingPage";
 import PlayerPage from "./pages/PlayerPage";
 import LoginPage from "./pages/LoginPage";
@@ -16,6 +19,7 @@ import { ARTISTS_DATA } from "./data/artists";
 import { useArtists } from "./context/ArtistContext";
 import { saveHistory, getUserData } from "./services/userService";
 import { useToast } from "./context/ToastContext";
+import DebugPanel from "./components/DebugPanel";
 import "./App.css";
 
 const moods = [
@@ -129,9 +133,23 @@ function App() {
   const [playedIds, setPlayedIds] = useState(new Set());
   const [isPlaying, setIsPlaying] = useState(true);
   const [shuffle, setShuffle] = useState(false);
-  const [likedSongs, setLikedSongs] = useState([]);
   const [likedKeywords, setLikedKeywords] = useState([]);
-  const [dislikedKeywords, setDislikedKeywords] = useState([]);
+  const [dislikedVideoIds, setDislikedVideoIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_disliked_video_ids");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [dislikedArtistNames, setDislikedArtistNames] = useState(() => {
+    try {
+      const saved = localStorage.getItem("moodydj_disliked_artists");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [recentSongs, setRecentSongs] = useState([]);
   const [autoPlay] = useState(true);
   const [liked, setLiked] = useState(false);
@@ -198,6 +216,35 @@ function App() {
     }
   }, [artistsLoaded, selectedArtists]);
 
+  // Repair empty DB for existing users
+  useEffect(() => {
+    if (!artistsLoaded || selectedArtists.length < 3) return;
+    const checkAndRepair = async () => {
+      const count = await getSongsCount();
+      if (count < 100) {
+        console.log("🔧 [DB REPAIR] DB has < 100 songs, triggering prewarm repair...");
+        const artistNames = selectedArtists.map(id => {
+          const found = ARTISTS_DATA.find(a => a.id === id);
+          return found ? found.name : id;
+        });
+        try {
+          const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/prewarm-artists`, {
+            artists: artistNames
+          });
+          if (res.data && res.data.songs) {
+            const { saveSongsToPool } = await import("./services/dbService");
+            await saveSongsToPool(res.data.songs);
+            updateCachedPool(res.data.songs);
+            console.log("✅ [DB REPAIR] Repaired local DB with prewarmed songs.");
+          }
+        } catch (e) {
+          console.warn("Failed to repair DB:", e.message);
+        }
+      }
+    };
+    checkAndRepair();
+  }, [artistsLoaded, selectedArtists]);
+
   useEffect(() => {
     const userStr = localStorage.getItem("user");
     if (userStr) {
@@ -260,42 +307,69 @@ function App() {
   };
 
   const handleRefreshList = async () => {
-    console.log("🔄 [REFRESH LIST] Refresh triggered. Source: cachedSongsPool (localStorage/session cache). No API calls.");
-    if (!selectedMood) return;
-
-    // 1. Reshuffle/reuse locally cached songs whenever possible (Requirement 1)
-    if (songs && songs.length > 1) {
-      const currentSong = songs[currentIndex];
-      const remainingSongs = songs.filter((_, idx) => idx !== currentIndex);
-      
-      // Fisher-Yates shuffle algorithm
-      const shuffledRemaining = [...remainingSongs];
-      for (let i = shuffledRemaining.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledRemaining[i], shuffledRemaining[j]] = [shuffledRemaining[j], shuffledRemaining[i]];
-      }
-      
-      const newSongs = [currentSong, ...shuffledRemaining];
-      setSongs(newSongs);
-      setCurrentIndex(0);
-      setPlayedIds(new Set([currentSong.videoId]));
-      return;
-    }
-
-    // Fallback: If queue is somehow empty, fetch from API
+    console.log("🔄 [REFRESH LIST] Refresh triggered. Source: IndexedDB. No API calls.");
+    
     try {
       setLoading(true);
-      const requestParams = buildMoodRequestParams(blendConfig, { likedKeywords, dislikedKeywords });
-      const res = await axios.get("http://localhost:5000/api/songs", {
-        params: requestParams,
+      
+      // Ensure seed songs are loaded if DB is completely empty (ultimate safety)
+      await ensureSeedSongsLoaded("RefreshList fallback", { caller: "handleRefreshList" });
+
+      const mood1 = blendConfig.mood1;
+      const mood2 = blendConfig.mood2;
+      const weight1 = blendConfig.weight1;
+      const weight2 = blendConfig.weight2;
+
+      let songsFromDb = [];
+
+      if (mood2 && weight2 > 0) {
+        const [pool1, pool2] = await Promise.all([
+          getSongsByMood(mood1),
+          getSongsByMood(mood2)
+        ]);
+        
+        const targetSize = 100;
+        const count1 = Math.round((weight1 / 100) * targetSize);
+        const count2 = targetSize - count1;
+        
+        const shuffleSlice = (arr, size) => {
+          const shuffled = [...arr].sort(() => Math.random() - 0.5);
+          return shuffled.slice(0, size);
+        };
+        
+        songsFromDb = [...shuffleSlice(pool1, count1), ...shuffleSlice(pool2, count2)];
+      } else if (mood1) {
+        songsFromDb = await getSongsByMood(mood1);
+      } else {
+        songsFromDb = await getAllSongs();
+      }
+
+      if (songsFromDb.length === 0) {
+        songsFromDb = await getAllSongs();
+      }
+
+      // Generate a fresh local queue, avoiding the current queue songs and recent songs
+      const localQueue = generateLocalQueue(songsFromDb, {
+        recentSongs,
+        currentQueue: songs, // avoid current queue songs
+        targetSize: 50,
+        avoidPlayedIds: new Set(),
+        dislikedVideoIds,
+        dislikedArtistNames
       });
-      if (res.data.songs && res.data.songs.length > 0) {
-        setSongs(res.data.songs);
+
+      console.log(`🔄 [LOCAL REFRESH] Regenerated queue locally from IndexedDB. Count: ${localQueue.length}. Zero API calls.`);
+
+      if (localQueue.length > 0) {
+        setSongs(localQueue);
         setCurrentIndex(0);
         setPlayedIds(new Set());
+      } else {
+        showToast("No new songs found in local cache.", "info");
       }
     } catch (err) {
-      console.error("Refresh list failed:", err);
+      console.error("Local refresh failed:", err);
+      showToast("Failed to refresh list locally.", "error");
     } finally {
       setLoading(false);
     }
@@ -307,7 +381,6 @@ function App() {
     const normalizedWeight1 = Math.max(0, Math.min(100, safeWeight1));
     const normalizedWeight2 = payload.mood2 ? 100 - normalizedWeight1 : 0;
     const liked = keywordState.likedKeywords ?? likedKeywords;
-    const disliked = keywordState.dislikedKeywords ?? dislikedKeywords;
 
     return {
       mood1: payload.mood1,
@@ -316,9 +389,9 @@ function App() {
       weight2: normalizedWeight2,
       userId: getCurrentUserId(),
       likedKeywords: liked.join(","),
-      dislikedKeywords: disliked.join(","),
-      sessionId, // ✅ Include sessionId for Auto-DJ queue management
-      isPersonalized,
+      dislikedVideoIds: dislikedVideoIds.join(","),
+      sessionId,
+      isPersonalized: isPersonalized,
       selectedArtists: isPersonalized 
           ? ARTISTS_DATA.filter(a => selectedArtists.includes(a.id)).map(a => a.name).join(",") 
           : "",
@@ -328,29 +401,74 @@ function App() {
   const handleMood = async (selection, keywordState) => {
     try {
       setLoading(true);
-      const requestParams = buildMoodRequestParams(selection, keywordState);
-      setSelectedMood(requestParams.mood1);
+      const payload = typeof selection === "string" ? { mood1: selection } : selection;
+      const mood1 = payload.mood1;
+      const mood2 = payload.mood2 || "";
+      const weight1 = Number(payload.weight1 ?? 100);
+      const weight2 = mood2 ? 100 - weight1 : 0;
+
+      setSelectedMood(mood1);
       setBlendConfig({
-        mood1: requestParams.mood1,
-        mood2: requestParams.mood2 || "",
-        weight1: requestParams.weight1,
-        weight2: requestParams.weight2,
+        mood1,
+        mood2,
+        weight1,
+        weight2,
       });
 
-      const res = await axios.get("http://localhost:5000/api/songs", {
-        params: requestParams,
-      });
-      const isQuotaSafeMode = res.data.meta?.quotaSafeMode || res.data.quotaSafeMode;
-      if (isQuotaSafeMode && !hasShownQuotaWarningRef.current) {
-        showToast("Using cached music library to preserve API quota.", "info");
-        hasShownQuotaWarningRef.current = true;
+      console.log(`🧠 [LOCAL PLAYBACK] Generating queue for Mood: ${mood1} ${mood2 ? `+ ${mood2} (${weight1}/${weight2})` : ""}`);
+
+      // Ensure seed songs are loaded if DB is completely empty (ultimate safety)
+      await ensureSeedSongsLoaded("Mood generation fallback", { caller: "handleMood", mood1, mood2 });
+
+      // Fetch matching songs from IndexedDB
+      let songsFromDb = [];
+
+      if (mood2 && weight2 > 0) {
+        const [pool1, pool2] = await Promise.all([
+          getSongsByMood(mood1),
+          getSongsByMood(mood2)
+        ]);
+        
+        // Combine them in proportion to weights
+        const targetSize = 100;
+        const count1 = Math.round((weight1 / 100) * targetSize);
+        const count2 = targetSize - count1;
+        
+        const shuffleSlice = (arr, size) => {
+          const shuffled = [...arr].sort(() => Math.random() - 0.5);
+          return shuffled.slice(0, size);
+        };
+        
+        songsFromDb = [...shuffleSlice(pool1, count1), ...shuffleSlice(pool2, count2)];
+      } else {
+        songsFromDb = await getSongsByMood(mood1);
       }
-      setSongs(res.data.songs || []);
+
+      // If no songs match this mood in IndexedDB, fall back to getting all songs
+      if (songsFromDb.length === 0) {
+        console.warn(`⚠️ No local songs found for mood(s). Falling back to all stored songs.`);
+        songsFromDb = await getAllSongs();
+      }
+
+      // Generate the local queue
+      const localQueue = generateLocalQueue(songsFromDb, {
+        recentSongs,
+        currentQueue: [], // fresh queue
+        targetSize: 50,
+        avoidPlayedIds: new Set(),
+        dislikedVideoIds,
+        dislikedArtistNames
+      });
+
+      console.log(`✅ [LOCAL QUEUE ENGINE] Generated Mood queue: ${localQueue.length} songs. Source: IndexedDB. Excluded: ${recentSongs.length} played. Zero API calls.`);
+
+      setSongs(localQueue);
       setCurrentIndex(0);
       setPlayedIds(new Set());
       navigate("/player");
     } catch (err) {
-      console.log(err);
+      console.error("Local mood selection failed:", err);
+      showToast("Failed to generate queue locally.", "error");
     } finally {
       setLoading(false);
     }
@@ -500,6 +618,37 @@ function App() {
     
     setDisliked(true);
     try {
+      // 1. Update local disliked collections
+      const songArtist = (song.artistNormalized || song.artist || "").toLowerCase().trim();
+      
+      setDislikedVideoIds(prev => {
+        const updated = Array.from(new Set([...prev, song.videoId]));
+        localStorage.setItem("moodydj_disliked_video_ids", JSON.stringify(updated));
+        return updated;
+      });
+
+      if (songArtist) {
+        setDislikedArtistNames(prev => {
+          const updated = Array.from(new Set([...prev, songArtist]));
+          localStorage.setItem("moodydj_disliked_artists", JSON.stringify(updated));
+          return updated;
+        });
+      }
+
+      // 2. Remove from queue immediately
+      setSongs(prev => {
+        const nextSongs = prev.filter(s => s.videoId !== song.videoId);
+        if (nextSongs.length === 0) {
+          setCurrentIndex(0);
+          return [];
+        }
+        if (currentIndex >= nextSongs.length) {
+          setCurrentIndex(0);
+        }
+        return nextSongs;
+      });
+
+      // 3. Sync dislike to server/Firestore in background
       await axios.post(`${API_URL}/api/dislike`, {
         sessionId,
         videoId: song.videoId,
@@ -507,8 +656,6 @@ function App() {
         channelTitle: song.channelTitle,
         userId: getCurrentUserId()
       });
-      // Auto skip to next song after dislike
-      handleNextSong();
     } catch (err) {
       console.error("Dislike failed:", err.message);
     }
@@ -520,7 +667,9 @@ function App() {
       const res = await axios.get(`http://localhost:5000/api/song/${videoId}/stats`);
       setStats(res.data);
     } catch (err) {
-      console.log(err);
+      if (err?.response?.status !== 404) {
+        console.log("Stats fetch failed:", err.message);
+      }
     }
   };
 
@@ -630,7 +779,7 @@ function App() {
                 blendConfig={blendConfig}
                 onBlendChange={setBlendConfig}
                 likedKeywords={likedKeywords}
-                dislikedKeywords={dislikedKeywords}
+                dislikedArtists={dislikedArtistNames}
                 liked={liked}
                 disliked={disliked}
                 playerRef={playerRef}
@@ -680,6 +829,7 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
+      <DebugPanel />
       <div style={{
         position:'fixed', bottom:'16px', right:'16px',
         width:'10px', height:'10px', borderRadius:'50%',

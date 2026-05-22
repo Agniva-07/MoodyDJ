@@ -20,7 +20,7 @@ function PlayerCard({
   liked,
   disliked,
   likedKeywords,
-  dislikedKeywords,
+  dislikedArtists,
   playerRef,
 }) {
   const [currentTime, setCurrentTime] = useState(0);
@@ -230,7 +230,7 @@ function PlayerCard({
 
         <div className="feedback-row">
           <span>👍 {likedKeywords?.join(", ") || "none"}</span>
-          <span>👎 {dislikedKeywords?.join(", ") || "none"}</span>
+          <span>👎 {dislikedArtists?.join(", ") || "none"}</span>
         </div>
       </div>
       </div>

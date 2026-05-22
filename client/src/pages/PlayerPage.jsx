@@ -22,7 +22,7 @@ function PlayerPage({
   onSelectSong,
   recentSongs,
   likedKeywords,
-  dislikedKeywords,
+  dislikedArtists,
   liked,
   disliked,
   playerRef,
@@ -54,7 +54,7 @@ function PlayerPage({
             onLike={onLike}
             onDislike={onDislike}
             likedKeywords={likedKeywords}
-            dislikedKeywords={dislikedKeywords}
+            dislikedArtists={dislikedArtists}
             liked={liked}
             disliked={disliked}
             playerRef={playerRef}
