@@ -415,6 +415,14 @@ function SoloPage() {
   };
 
   const fetchStats = async (videoId) => {
+    const song = songs.find(s => s.videoId === videoId);
+    if (song?.validated === true) {
+      setStats({
+        viewCount: song.viewCount || 0,
+        likeCount: song.likeCount || 0
+      });
+      return;
+    }
     try {
       setStats(null);
       const res = await axios.get(`http://localhost:5000/api/song/${videoId}/stats`);

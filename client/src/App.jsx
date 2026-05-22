@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { updateCachedPool } from "./services/cacheService";
-import { getSongsByMood, getAllSongs, getSongsCount, ensureSeedSongsLoaded } from "./services/dbService";
+import { getSongsByMood, getAllSongs, getSongsCount, ensureSeedSongsLoaded, saveSongsToPool } from "./services/dbService";
 import { generateLocalQueue } from "./services/localEngine";
 import LandingPage from "./pages/LandingPage";
 import PlayerPage from "./pages/PlayerPage";
@@ -220,26 +220,21 @@ function App() {
   useEffect(() => {
     if (!artistsLoaded || selectedArtists.length < 3) return;
     const checkAndRepair = async () => {
-      const count = await getSongsCount();
-      if (count < 100) {
-        console.log("🔧 [DB REPAIR] DB has < 100 songs, triggering prewarm repair...");
-        const artistNames = selectedArtists.map(id => {
-          const found = ARTISTS_DATA.find(a => a.id === id);
-          return found ? found.name : id;
-        });
-        try {
+      try {
+        const count = await getSongsCount();
+        if (count < 100) {
+          console.log("🔧 [DB REPAIR] DB has < 100 songs, triggering prewarm repair...");
           const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/prewarm-artists`, {
-            artists: artistNames
+            artists: selectedArtists
           });
           if (res.data && res.data.songs) {
-            const { saveSongsToPool } = await import("./services/dbService");
             await saveSongsToPool(res.data.songs);
             updateCachedPool(res.data.songs);
-            console.log("✅ [DB REPAIR] Repaired local DB with prewarmed songs.");
+            console.log("🔧 [DB REPAIR] Repaired local DB with prewarmed songs.");
           }
-        } catch (e) {
-          console.warn("Failed to repair DB:", e.message);
         }
+      } catch (e) {
+        console.warn("🔧 [DB REPAIR] Failed to repair DB:", e.message);
       }
     };
     checkAndRepair();
@@ -545,21 +540,7 @@ function App() {
     };
   }, [currentIndex, songs, sessionId]);
 
-  // ✅ PREFETCH: Trigger at ~75% playback (Auto-DJ queue management)
-  const prefetchNextSongs = async () => {
-    if (!sessionId || !selectedMood) return;
-
-    try {
-      const response = await axios.post("http://localhost:5000/api/prefetch-next", {
-        sessionId,
-        mood: selectedMood,
-      });
-
-      console.log("📡 Prefetch status:", response.data);
-    } catch (error) {
-      console.log("Prefetch error (non-critical):", error.message);
-    }
-  };
+  // Prefetching and automatic queue refills are handled locally now.
 
   // Monitor playback for Auto-DJ prefetch (simplified for embed iframe)
   // Disabled automatic prefetch as per new requirement: "Automatic refreshes should NOT happen anymore"
@@ -662,6 +643,14 @@ function App() {
   };
 
   const fetchStats = async (videoId) => {
+    const song = songs.find(s => s.videoId === videoId);
+    if (song?.validated === true) {
+      setStats({
+        viewCount: song.viewCount || 0,
+        likeCount: song.likeCount || 0
+      });
+      return;
+    }
     try {
       setStats(null);
       const res = await axios.get(`http://localhost:5000/api/song/${videoId}/stats`);
