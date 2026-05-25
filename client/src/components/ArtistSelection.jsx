@@ -4,6 +4,7 @@ import { ARTISTS_DATA } from '../data/artists';
 import { updateCachedPool } from '../services/cacheService';
 import { saveSongsToPool } from '../services/dbService';
 import './ArtistSelection.css';
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }) => {
   const [selectedIds, setSelectedIds] = useState(new Set(initialSelected));
@@ -48,7 +49,7 @@ const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }
         return found ? found.name : id;
       });
 
-      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/prewarm-artists`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://${API_BASE}'}/api/prewarm-artists`, {
         artists: artistNames
       });
 

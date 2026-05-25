@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import axios from 'axios';
 import { playlistService } from '../services/playlistService';
 import { useToast } from './ToastContext';
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const PlaylistContext = createContext();
 
@@ -338,7 +339,7 @@ export const PlaylistProvider = ({ children }) => {
     if (missingIds.length === 0) return;
 
     try {
-      const response = await axios.post("http://localhost:5000/api/songs/metadata", {
+      const response = await axios.post("http://${API_BASE}/api/songs/metadata", {
         videoIds: missingIds
       });
       

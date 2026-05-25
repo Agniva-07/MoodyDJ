@@ -12,6 +12,7 @@ import { useArtists } from "../context/ArtistContext";
 import { useToast } from "../context/ToastContext";
 import { db } from "../firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const deduplicateSongs = (songs) => {
   const map = new Map();
@@ -115,7 +116,7 @@ function SoloPage() {
     if (!song) return;
     setLiked(prev => !prev);
     try {
-      await axios.post("http://localhost:5000/api/like", {
+      await axios.post("http://${API_BASE}/api/like", {
         sessionId,
         videoId: song.videoId,
         title: song.title,
@@ -162,7 +163,7 @@ function SoloPage() {
         return nextSongs;
       });
 
-      await axios.post("http://localhost:5000/api/dislike", {
+      await axios.post("http://${API_BASE}/api/dislike", {
         sessionId,
         videoId: song.videoId,
         title: song.title,
@@ -425,7 +426,7 @@ function SoloPage() {
     }
     try {
       setStats(null);
-      const res = await axios.get(`http://localhost:5000/api/song/${videoId}/stats`);
+      const res = await axios.get(`http://${API_BASE}/api/song/${videoId}/stats`);
       setStats(res.data);
     } catch (err) {
       console.log("Stats error:", err);

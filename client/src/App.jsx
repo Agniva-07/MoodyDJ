@@ -21,6 +21,7 @@ import { saveHistory, getUserData } from "./services/userService";
 import { useToast } from "./context/ToastContext";
 import DebugPanel from "./components/DebugPanel";
 import "./App.css";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const moods = [
   { id: "chill", icon: "🌿", title: "Chill", subtitle: "Relax & unwind" },
@@ -224,7 +225,7 @@ function App() {
         const count = await getSongsCount();
         if (count < 100) {
           console.log("🔧 [DB REPAIR] DB has < 100 songs, triggering prewarm repair...");
-          const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/prewarm-artists`, {
+          const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://${API_BASE}'}/api/prewarm-artists`, {
             artists: selectedArtists
           });
           if (res.data && res.data.songs) {
@@ -250,7 +251,7 @@ function App() {
     } else if (sessionId) {
       const loadRecent = async () => {
         try {
-          const res = await axios.get(`http://localhost:5000/api/recent?sessionId=${sessionId}`);
+          const res = await axios.get(`http://${API_BASE}/api/recent?sessionId=${sessionId}`);
           setRecentSongs(res.data.recent || []);
         } catch (err) {
           console.log(err);
@@ -261,7 +262,7 @@ function App() {
   }, [sessionId]);
 
   useEffect(() => {
-    const API_URL = "http://localhost:5000";
+    const API_URL = "http://${API_BASE}";
     const checkQuota = async () => {
       try {
         const res = await axios.get(`${API_URL}/api/quota-status`);
@@ -517,7 +518,7 @@ function App() {
           }).catch(err => console.log("Failed to save history", err));
         } else if (sessionId) {
           axios
-            .post("http://localhost:5000/api/recent", {
+            .post("http://${API_BASE}/api/recent", {
               sessionId,
               videoId: nowPlaying.videoId,
               title: nowPlaying.title,
@@ -571,7 +572,7 @@ function App() {
 
     // ✅ NEW: Call backend /like endpoint
     try {
-      await axios.post("http://localhost:5000/api/like", {
+      await axios.post("http://${API_BASE}/api/like", {
         sessionId,
         videoId: song.videoId,
         title: song.title,
@@ -595,7 +596,7 @@ function App() {
   const handleDislike = async () => {
     const song = songs[currentIndex];
     if (!song) return;
-    const API_URL = "http://localhost:5000";
+    const API_URL = "http://${API_BASE}";
     
     setDisliked(true);
     try {
@@ -653,7 +654,7 @@ function App() {
     }
     try {
       setStats(null);
-      const res = await axios.get(`http://localhost:5000/api/song/${videoId}/stats`);
+      const res = await axios.get(`http://${API_BASE}/api/song/${videoId}/stats`);
       setStats(res.data);
     } catch (err) {
       if (err?.response?.status !== 404) {
