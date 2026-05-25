@@ -49,7 +49,7 @@ const ArtistSelection = ({ onComplete, initialSelected = [], prewarmedIds = [] }
         return found ? found.name : id;
       });
 
-      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL || 'http://${API_BASE}'}/api/prewarm-artists`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || API_BASE}/api/prewarm-artists`, {
         artists: artistNames
       });
 

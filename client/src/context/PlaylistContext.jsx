@@ -339,7 +339,7 @@ export const PlaylistProvider = ({ children }) => {
     if (missingIds.length === 0) return;
 
     try {
-      const response = await axios.post("http://${API_BASE}/api/songs/metadata", {
+      const response = await axios.post(`${API_BASE}/api/songs/metadata`, {
         videoIds: missingIds
       });
       

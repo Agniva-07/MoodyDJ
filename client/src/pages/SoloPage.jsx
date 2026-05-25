@@ -116,7 +116,7 @@ function SoloPage() {
     if (!song) return;
     setLiked(prev => !prev);
     try {
-      await axios.post("http://${API_BASE}/api/like", {
+      await axios.post(`${API_BASE}/api/like`, {
         sessionId,
         videoId: song.videoId,
         title: song.title,
@@ -163,7 +163,7 @@ function SoloPage() {
         return nextSongs;
       });
 
-      await axios.post("http://${API_BASE}/api/dislike", {
+      await axios.post(`${API_BASE}/api/dislike`, {
         sessionId,
         videoId: song.videoId,
         title: song.title,
@@ -426,7 +426,7 @@ function SoloPage() {
     }
     try {
       setStats(null);
-      const res = await axios.get(`http://${API_BASE}/api/song/${videoId}/stats`);
+      const res = await axios.get(`${API_BASE}/api/song/${videoId}/stats`);
       setStats(res.data);
     } catch (err) {
       console.log("Stats error:", err);

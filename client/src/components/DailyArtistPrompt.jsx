@@ -63,7 +63,7 @@ const DailyArtistPrompt = () => {
       // 2. Prewarm the backend cache with these artists
       let fetchedSongs = [];
       try {
-        const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/prewarm-artists`, {
           artists: artistNames
         });
         if (response.data && response.data.songs) {
@@ -123,7 +123,7 @@ const DailyArtistPrompt = () => {
         localStorage.setItem('prewarmedArtists', JSON.stringify(artistNames));
         localStorage.setItem('lastPrewarmTimestamp', nowTs.toString());
 
-        axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/prewarm-artists`, {
+        axios.post(`${import.meta.env.VITE_API_URL}/api/prewarm-artists`, {
           artists: artistNames
         }).then(async res => {
           if (res.data && res.data.songs) {
