@@ -1,11 +1,11 @@
-const { initFirebaseAdmin } = require("./firebaseAdmin");
+const admin = require("./firebaseAdmin");
 
 const MAX_RECENT_SONGS = 40;
 
 const getRecentSongs = async (userId) => {
   if (!userId) return [];
 
-  const db = initFirebaseAdmin();
+  const db = admin.firestore();
   if (!db) return [];
 
   try {
@@ -24,7 +24,7 @@ const getRecentSongs = async (userId) => {
 const addRecentSongs = async (userId, videoIds = []) => {
   if (!userId || !Array.isArray(videoIds) || videoIds.length === 0) return;
 
-  const db = initFirebaseAdmin();
+  const db = admin.firestore();
   if (!db) return;
 
   try {

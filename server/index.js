@@ -5,7 +5,7 @@ const cors = require("cors");
 const app = express();
 const songsRoute = require("./routes/songs");
 const { verifyFirebaseToken } = require("./authMiddleware");
-const { initFirebaseAdmin } = require("./firebaseAdmin");
+const admin = require("./firebaseAdmin");
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -29,7 +29,7 @@ app.get("/api/onboarding-status", async (req, res) => {
   const uid = req.authenticatedUid || req.query.userId;
   if (!uid) return res.status(401).json({ error: "Not authenticated" });
 
-  const db = initFirebaseAdmin();
+  const db = admin.firestore();
   if (!db) return res.status(500).json({ error: "DB not available" });
 
   try {
@@ -63,7 +63,7 @@ app.post("/api/complete-onboarding", async (req, res) => {
     return res.status(400).json({ error: "selectedArtistIds required" });
   }
 
-  const db = initFirebaseAdmin();
+  const db = admin.firestore();
   if (!db) return res.status(500).json({ error: "DB not available" });
 
   try {
@@ -110,8 +110,7 @@ setInterval(() => {
 }, 60 * 1000);
 
 app.get("/test-firebase", async (req, res) => {
-  const db = initFirebaseAdmin();
-
+  const db = admin.firestore();
   if (!db) {
     return res.status(500).send("Firebase not initialized");
   }

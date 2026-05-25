@@ -38,7 +38,8 @@ router.getNextMidnightPT = getNextMidnightPT;
 
 async function initQuotaTracker() {
   try {
-    const db = require("../firebaseAdmin").initFirebaseAdmin();
+    const admin = require("../firebaseAdmin");
+    const db = admin.firestore();
     if (!db) return;
     const doc = await db.collection("system").doc("quotaTracker").get();
     if (doc.exists) {
@@ -82,7 +83,8 @@ function trackQuotaUsage(units) {
   if (quotaTracker.unitsUsed % 200 < units) {
     runNonBlocking(async () => {
       try {
-        const db = require("../firebaseAdmin").initFirebaseAdmin();
+        const admin = require("../firebaseAdmin");
+        const db = admin.firestore();
         if (db) {
           await db.collection("system").doc("quotaTracker").set({
             unitsUsed: quotaTracker.unitsUsed,
@@ -225,7 +227,8 @@ const getFallbackSongs = async (type, query, userId) => {
   // Level 2 — Firestore history
   if (userId) {
     try {
-      const db = require("../firebaseAdmin").initFirebaseAdmin();
+      const admin = require("..firebaseAdmin");
+      const db = admin.firestore();
       if (db) {
         const historySnapshot = await db.collection("recentSongs").doc(userId).get();
         if (historySnapshot.exists) {
