@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getColor } from "colorthief";
 import YouTubePlayer from "./YouTubePlayer";
 import ProgressBar from "./ProgressBar";
@@ -8,6 +8,18 @@ import "./PlayerCard.css";
 
 const FALLBACK_ACCENT = "#7c3aed";
 const FALLBACK_GLOW = "rgba(124, 58, 237, 0.6)";
+
+// ─── BACKGROUND PLAY JUGAAD ──────────────────────────────────────────────────
+// How it works:
+// 1. A silent <audio loop> element tricks Android Chrome into keeping the
+//    tab's audio context alive when the screen locks or tab is backgrounded.
+// 2. A visibilitychange listener detects screen-off and re-nudges the YouTube
+//    player to resume (Chrome sometimes pauses the iframe on visibility change).
+// 3. silentAudio.play() MUST be called from a user gesture (play button click)
+//    — browsers block autoplay. After that first gesture it loops silently forever.
+// Limitations: Android Chrome only. iOS Safari hard-blocks this. Does NOT work
+// if user explicitly pauses before locking screen.
+// ─────────────────────────────────────────────────────────────────────────────
 
 function PlayerCard({
   song,
@@ -31,6 +43,68 @@ function PlayerCard({
   const [themeAccent, setThemeAccent] = useState(FALLBACK_ACCENT);
   const [themeGlow, setThemeGlow] = useState(FALLBACK_GLOW);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // ── jugaad refs ──────────────────────────────────────────────────────────
+  const silentAudioRef = useRef(null);
+  const silentStartedRef = useRef(false); // tracks if user gesture has unlocked audio
+  const localPlayingRef = useRef(false);  // mirror of localPlaying for use inside event listeners
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Keep localPlayingRef in sync with localPlaying state
+  useEffect(() => {
+    localPlayingRef.current = localPlaying;
+  }, [localPlaying]);
+
+  // ── Start silent audio (must be called from a user gesture) ──────────────
+  const startSilentAudio = () => {
+    const audio = silentAudioRef.current;
+    if (!audio || silentStartedRef.current) return;
+    audio.play()
+      .then(() => {
+        silentStartedRef.current = true;
+        console.log("🔇 [BG_PLAY] Silent audio loop started — background playback armed");
+      })
+      .catch((err) => {
+        // Browser blocked it — will retry on next gesture
+        console.warn("🔇 [BG_PLAY] Silent audio blocked (expected on first load):", err.message);
+      });
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Visibility change handler ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        // Screen locked or tab backgrounded
+        // Re-arm the silent audio in case browser suspended it
+        const audio = silentAudioRef.current;
+        if (audio && silentStartedRef.current) {
+          audio.play().catch(() => {});
+        }
+      } else {
+        // Screen came back — if we were playing, nudge YouTube to resume
+        // (small delay because the iframe needs a moment to wake up)
+        if (localPlayingRef.current && playerRef?.current) {
+          setTimeout(() => {
+            try {
+              const state = playerRef.current?.getPlayerState?.();
+              // state 2 = paused, -1 = unstarted — both need a nudge
+              if (state === 2 || state === -1) {
+                playerRef.current.playVideo();
+                console.log("▶️ [BG_PLAY] Nudged YouTube player on screen wake");
+              }
+            } catch (e) {
+              // Silently ignore — player may not be ready
+            }
+          }, 400);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [playerRef]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleVolumeChange = (e) => {
     const newVolume = parseInt(e.target.value, 10);
@@ -67,6 +141,8 @@ function PlayerCard({
     if (state === 1) {
       playerRef.current.pauseVideo();
     } else {
+      // ── User gesture: unlock silent audio here ──
+      startSilentAudio();
       playerRef.current.playVideo();
     }
   };
@@ -143,6 +219,17 @@ function PlayerCard({
 
   return (
     <section className="player-card" style={playerThemeStyle}>
+
+      {/* ── Silent audio loop for background playback jugaad ── */}
+      {/* Place it here so it lives as long as PlayerCard is mounted */}
+      <audio
+        ref={silentAudioRef}
+        src="/silence.mp3"
+        loop
+        preload="auto"
+        style={{ display: "none" }}
+      />
+
       <div key={song?.videoId} className="song-card-enter">
       <div className="player-card__noise" />
       <div className="player-card__aura" />
